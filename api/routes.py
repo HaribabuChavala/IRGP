@@ -374,6 +374,45 @@ def _source_fingerprint(payload: dict) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
+async def _resolve_data_source_credentials(data_source: dict, tenant_id: str) -> dict:
+    resolved = dict(data_source)
+    if resolved.get("username") and resolved.get("password"):
+        return resolved
+
+    vault_path = resolved.get("vaultSecretPath")
+    if not vault_path:
+        vault_path = f"secret/data/report-platform/{tenant_id}/datasources/{resolved.get('id') or 'unknown'}"
+
+    vault_addr = os.getenv("VAULT_ADDR", "http://vault:8200").rstrip("/")
+    vault_token = os.getenv("VAULT_TOKEN", "dev-root-token").strip()
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            response = await client.get(
+                f"{vault_addr}/v1/{vault_path.lstrip('/')}",
+                headers={"X-Vault-Token": vault_token},
+            )
+            if response.status_code == 200:
+                secret_data = response.json().get("data", {}).get("data", {})
+                if secret_data:
+                    resolved.update(secret_data)
+                    return resolved
+    except Exception:
+        pass
+
+    if str(resolved.get("type", "")).lower() == "oracle" and (
+        str(resolved.get("host") or "").lower() in {"oracle", "localhost"}
+        or str(resolved.get("database") or "").upper() == "FREEPDB1"
+    ):
+        resolved["username"] = "report_ro"
+        resolved["password"] = "ReportReadOnly123"
+        resolved["schema"] = resolved.get("schema") or "report_owner"
+        resolved["database"] = resolved.get("database") or "FREEPDB1"
+        resolved["accessMode"] = resolved.get("accessMode") or "read"
+
+    return resolved
+
+
 def _data_source_name_exists(tenant_id: str, candidate_name: str) -> bool:
     normalized = (candidate_name or "").strip().lower()
     if not normalized:
@@ -1298,14 +1337,77 @@ async def upgrade_subscription(
     return {"organization": updated}
 
 
-def _sample_table() -> list[list[str]]:
-    return [
-        ["Region", "Revenue", "Growth %"],
-        ["North America", "$2.4M", "12.3%"],
-        ["Europe", "$1.8M", "8.7%"],
-        ["Asia Pacific", "$1.2M", "15.1%"],
-        ["Latin America", "$0.6M", "6.2%"],
-    ]
+def _sql_result_to_table(rows: list[tuple], columns: list[str] | None = None) -> list[list[str]]:
+    if not rows:
+        return [columns or ["result"], ["No rows returned"]]
+
+    header = [str(column[0] if isinstance(column, tuple) else column) for column in (columns or [])]
+    if not header and hasattr(rows[0], "_fields"):
+        header = [str(field) for field in rows[0]._fields]
+    if not header:
+        header = [f"Column {index + 1}" for index in range(len(rows[0]))]
+
+    result = [header]
+    for row in rows:
+        result.append(["" if value is None else str(value) for value in row])
+    return result
+
+
+def _execute_report_sql(sql: str, data_source: dict) -> list[list[str]]:
+    source_type = (data_source.get("type") or "").lower()
+    host = data_source.get("host") or "localhost"
+    port = int(data_source.get("port") or 1521)
+    username = data_source.get("username") or ""
+    password = data_source.get("password") or ""
+    database = data_source.get("database") or data_source.get("schema") or ""
+
+    if source_type == "oracle":
+        if oracledb is None:
+            raise RuntimeError("Oracle driver is not installed")
+        service_name = database or "FREEPDB1"
+        connection = oracledb.connect(
+            user=username,
+            password=password,
+            host=host,
+            port=port,
+            service_name=service_name,
+            tcp_connect_timeout=_db_connect_timeout_seconds(),
+        )
+        try:
+            cursor = connection.cursor()
+            try:
+                cursor.execute(sql)
+                rows = cursor.fetchall()
+                columns = [column[0] for column in cursor.description] if cursor.description else None
+                return _sql_result_to_table(rows, columns)
+            finally:
+                cursor.close()
+        finally:
+            connection.close()
+
+    if source_type == "teradata":
+        try:
+            import psycopg
+        except Exception as exc:  # pragma: no cover
+            raise RuntimeError(f"Teradata lab driver is not installed: {exc}") from exc
+        connection = psycopg.connect(
+            host=host,
+            port=port,
+            dbname=database or "teradata_lab",
+            user=username,
+            password=password,
+            connect_timeout=10,
+        )
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(sql)
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description] if cursor.description else None
+                return _sql_result_to_table(rows, columns)
+        finally:
+            connection.close()
+
+    raise RuntimeError(f"Datasource type '{data_source.get('type')}' is not supported for query execution")
 
 
 async def _run_report_job(
@@ -1314,6 +1416,7 @@ async def _run_report_job(
     data_source: dict,
     user: SecurityContext,
 ):
+    data_source = await _resolve_data_source_credentials(data_source, user.tenant_id)
     org = store.get_org_by_tenant(redis_client, user.tenant_id)
     org_name = org["name"] if org else user.organization_name or user.tenant_id
 
@@ -1359,20 +1462,30 @@ async def _run_report_job(
         store.remove_active_job(redis_client, job_id)
         return
 
-    table_data = [
-        ["Attribute", "Value"],
-        ["Data Source", data_source["name"]],
-        ["Dialect", sql_result.dialect],
-        ["Estimated Cost", sql_result.estimated_cost],
-        ["PII detected", "yes" if sql_result.pii_detected else "no"],
-        ["Provider", sql_result.provider],
-    ]
+    try:
+        table_data = _execute_report_sql(sql_result.sql, data_source)
+        result_label = f"Executed query against {data_source['name']}"
+        row_count = max(0, len(table_data) - 1)
+    except Exception as exc:
+        table_data = [
+            ["Attribute", "Value"],
+            ["Data Source", data_source["name"]],
+            ["Dialect", sql_result.dialect],
+            ["Estimated Cost", sql_result.estimated_cost],
+            ["PII detected", "yes" if sql_result.pii_detected else "no"],
+            ["Provider", sql_result.provider],
+            ["Execution error", str(exc)],
+        ]
+        result_label = f"SQL generated but execution failed: {exc}"
+        row_count = 0
+
     content = (
         f'SQL generated for "{prompt}" on {data_source["name"]}.\n\n'
         f'Dialect: {sql_result.dialect}\n'
         f'Cost estimate: {sql_result.estimated_cost}\n'
         f'Validation: passed\n\n'
-        f'Generated SQL:\n{sql_result.sql}'
+        f'Generated SQL:\n{sql_result.sql}\n\n'
+        f'{result_label}'
     )
 
     store.update_job(
@@ -1414,7 +1527,7 @@ async def _run_report_job(
         "dataSourceName": data_source["name"],
         "executedAt": datetime.now(timezone.utc).isoformat(),
         "status": "completed",
-        "rowCount": max(0, len(table_data) - 1),
+        "rowCount": row_count,
     }
     store.add_query_history(redis_client, user.tenant_id, history_item)
 
@@ -1450,6 +1563,8 @@ async def generate_report(
     data_source = next((s for s in sources if s["id"] == body.dataSourceId), None)
     if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
+
+    data_source = await _resolve_data_source_credentials(data_source, tenant_id)
 
     job_id = store.create_job(
         redis_client,

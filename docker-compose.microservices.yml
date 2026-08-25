@@ -329,8 +329,9 @@ services:
     container_name: access-ai-sql-service
     restart: unless-stopped
     environment:
-      GOOGLE_ADK_AGENT_URL: ${GOOGLE_ADK_AGENT_URL:-}
-      GOOGLE_ADK_AGENT_API_KEY: ${GOOGLE_ADK_AGENT_API_KEY:-}
+      GOOGLE_ADK_AGENT_URL: ${GOOGLE_ADK_AGENT_URL:-http://google-adk-agent:8001/agent}
+      GOOGLE_ADK_AGENT_API_KEY: ${GOOGLE_ADK_AGENT_API_KEY:-local-adk-test-key}
+      GOOGLE_GEMINI_MODEL: ${GOOGLE_GEMINI_MODEL:-gemini-2.5-flash}
       MAX_SQL_LIMIT: ${MAX_SQL_LIMIT:-1000}
       DENY_STAR_SELECT: ${DENY_STAR_SELECT:-true}
       ENFORCE_ROW_LIMIT: ${ENFORCE_ROW_LIMIT:-true}

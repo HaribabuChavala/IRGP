@@ -38,8 +38,8 @@ class SqlGenerationResult:
 class GoogleAdkSqlAgentService:
     def __init__(self) -> None:
         self.sql_service_url = os.getenv("AI_SQL_SERVICE_URL", "http://ai-sql-service:8000/generate-sql").strip()
-        self.agent_url = os.getenv("GOOGLE_ADK_AGENT_URL", "").strip()
-        self.agent_api_key = os.getenv("GOOGLE_ADK_AGENT_API_KEY", "").strip()
+        self.agent_url = os.getenv("GOOGLE_ADK_AGENT_URL", "http://google-adk-agent:8001/agent").strip() or "http://google-adk-agent:8001/agent"
+        self.agent_api_key = os.getenv("GOOGLE_ADK_AGENT_API_KEY", "local-adk-test-key").strip() or "local-adk-test-key"
 
     def _dialect_for_source(self, source_type: str) -> str:
         mapping = {
@@ -51,21 +51,22 @@ class GoogleAdkSqlAgentService:
         return mapping.get((source_type or "").lower(), "ansi")
 
     def _discover_schema(self, data_source: dict) -> dict:
-        schema_name = (data_source.get("database") or "default").strip() or "default"
         source_type = (data_source.get("type") or "").lower()
+        if source_type == "oracle":
+            schema_name = (data_source.get("schema") or "report_owner").strip() or "report_owner"
+        elif source_type == "teradata":
+            schema_name = (data_source.get("schema") or "public").strip() or "public"
+        else:
+            schema_name = (data_source.get("schema") or data_source.get("database") or "default").strip() or "default"
 
         tables_by_type = {
             "oracle": [
-                "sales_orders",
-                "sales_order_items",
                 "customers",
-                "products",
+                "sales_orders",
             ],
             "teradata": [
-                "fact_sales",
-                "dim_customer",
-                "dim_product",
-                "dim_date",
+                "customers",
+                "sales_orders",
             ],
             "hive": [
                 "events",
@@ -78,12 +79,12 @@ class GoogleAdkSqlAgentService:
         }
 
         columns = {
-            "sales_orders": ["order_id", "customer_id", "order_date", "region", "total_amount"],
+            "customers": ["customer_id", "customer_name", "region"],
+            "sales_orders": ["order_id", "customer_id", "order_date", "region", "amount", "status"],
             "sales_order_items": ["order_id", "product_id", "quantity", "unit_price"],
-            "customers": ["customer_id", "customer_name", "segment", "region", "email"],
             "products": ["product_id", "product_name", "category"],
             "fact_sales": ["sale_id", "customer_id", "product_id", "sale_date", "region", "revenue_amount"],
-            "dim_customer": ["customer_id", "customer_name", "segment", "region", "email"],
+            "dim_customer": ["customer_id", "customer_name", "region"],
             "dim_product": ["product_id", "product_name", "category"],
             "dim_date": ["date_key", "month", "quarter", "year"],
             "events": ["event_time", "event_type", "user_id", "region"],
@@ -127,29 +128,43 @@ class GoogleAdkSqlAgentService:
     def _generate_sql_local(self, prompt: str, data_source: dict, schema_context: dict) -> str:
         dialect = self._dialect_for_source(data_source.get("type", ""))
         limit_prefix, limit_suffix = self._limit_clause(dialect)
-        table = schema_context["tables"][0]
+        tables = schema_context["tables"]
+        table_map = {
+            "customers": next((item for item in tables if item.lower().endswith("customers")), tables[0]),
+            "sales_orders": next((item for item in tables if item.lower().endswith("sales_orders")), tables[-1]),
+        }
+        customers_table = table_map["customers"]
+        sales_table = table_map["sales_orders"]
         text = prompt.lower()
+        region_filter = ""
+        if any(token in text for token in ("only us sales", "us sales", "sales in us", "in us", "usa", "united states")):
+            region_filter = " WHERE c.region = 'US' "
 
         if "count" in text and "customer" in text:
-            return f"SELECT COUNT(*) AS customer_count FROM {table}"
+            return f"SELECT COUNT(*) AS customer_count FROM {customers_table}"
 
         if "revenue" in text or "sales" in text:
+            join_sql = (
+                f"FROM {sales_table} so "
+                f"JOIN {customers_table} c ON c.customer_id = so.customer_id "
+                f"{region_filter}"
+                f"GROUP BY c.region "
+            )
             return (
-                f"SELECT {limit_prefix}region, SUM(revenue_amount) AS total_revenue "
-                f"FROM {table} "
-                f"GROUP BY region "
+                f"SELECT {limit_prefix}c.region AS region, SUM(so.amount) AS total_revenue "
+                f"{join_sql}"
                 f"ORDER BY total_revenue DESC{limit_suffix}"
             )
 
         if "top" in text and "product" in text:
             return (
-                f"SELECT {limit_prefix}product_id, SUM(revenue_amount) AS total_revenue "
-                f"FROM {table} "
+                f"SELECT {limit_prefix}product_id, SUM(amount) AS total_revenue "
+                f"FROM {sales_table} "
                 f"GROUP BY product_id "
                 f"ORDER BY total_revenue DESC{limit_suffix}"
             )
 
-        return f"SELECT {limit_prefix}* FROM {table}{limit_suffix}"
+        return f"SELECT {limit_prefix}* FROM {sales_table}{limit_suffix}"
 
     def _validate_sql(self, sql: str, schema_context: dict) -> tuple[bool, list[str]]:
         errors: list[str] = []
@@ -190,7 +205,7 @@ class GoogleAdkSqlAgentService:
         return len(hits) > 0, hits
 
     async def _generate_via_remote_adk(self, payload: dict) -> str | None:
-        if not self.agent_url:
+        if not self.agent_url or not self.agent_api_key:
             return None
 
         headers = {"Content-Type": "application/json"}

@@ -37,23 +37,30 @@ async def agent(payload: AgentRequest, authorization: str | None = Header(defaul
 
     prompt = payload.prompt.lower()
     schema_context = payload.schema_context or {}
-    tables = schema_context.get("tables") or ["testing.sales_orders"]
-    table = str(tables[0])
+    tables = schema_context.get("tables") or ["report_owner.sales_orders"]
+    customer_table = next((table for table in tables if str(table).lower().endswith("customers")), tables[0])
+    sales_table = next((table for table in tables if str(table).lower().endswith("sales_orders")), tables[-1])
+
+    region_filter = ""
+    if any(token in prompt for token in ("only us sales", "us sales", "sales in us", "in us", "usa", "united states")):
+        region_filter = " WHERE c.region = 'US' "
 
     if "count" in prompt and "customer" in prompt:
-        sql = f"SELECT COUNT(*) AS customer_count FROM {table}"
+        sql = f"SELECT COUNT(*) AS customer_count FROM {customer_table}"
     elif "revenue" in prompt or "sales" in prompt:
         sql = (
-            f"SELECT region, SUM(revenue_amount) AS total_revenue FROM {table} "
-            "GROUP BY region ORDER BY total_revenue DESC FETCH FIRST 100 ROWS ONLY"
+            f"SELECT c.region AS region, SUM(so.amount) AS total_revenue "
+            f"FROM {sales_table} so JOIN {customer_table} c ON c.customer_id = so.customer_id "
+            f"{region_filter}"
+            "GROUP BY c.region ORDER BY total_revenue DESC FETCH FIRST 100 ROWS ONLY"
         )
     elif "top" in prompt and "product" in prompt:
         sql = (
-            f"SELECT product_id, SUM(revenue_amount) AS total_revenue FROM {table} "
+            f"SELECT product_id, SUM(amount) AS total_revenue FROM {sales_table} "
             "GROUP BY product_id ORDER BY total_revenue DESC FETCH FIRST 100 ROWS ONLY"
         )
     else:
-        sql = f"SELECT * FROM {table} FETCH FIRST 100 ROWS ONLY"
+        sql = f"SELECT * FROM {sales_table} FETCH FIRST 100 ROWS ONLY"
 
     return {
         "sql": sql,

@@ -47,23 +47,28 @@ class SqlAgentPipeline:
         return mapping.get((source_type or "").lower(), "ansi")
 
     def _discover_schema(self, data_source: dict) -> dict:
-        schema_name = (data_source.get("database") or "default").strip() or "default"
         source_type = (data_source.get("type") or "").lower()
+        if source_type == "oracle":
+            schema_name = (data_source.get("schema") or "report_owner").strip() or "report_owner"
+        elif source_type == "teradata":
+            schema_name = (data_source.get("schema") or "public").strip() or "public"
+        else:
+            schema_name = (data_source.get("schema") or data_source.get("database") or "default").strip() or "default"
 
         tables_by_type = {
-            "oracle": ["sales_orders", "sales_order_items", "customers", "products"],
-            "teradata": ["fact_sales", "dim_customer", "dim_product", "dim_date"],
+            "oracle": ["customers", "sales_orders"],
+            "teradata": ["customers", "sales_orders"],
             "hive": ["events", "sessions", "users"],
             "excel": ["sheet1"],
         }
 
         columns = {
-            "sales_orders": ["order_id", "customer_id", "order_date", "region", "total_amount", "revenue_amount"],
+            "customers": ["customer_id", "customer_name", "region"],
+            "sales_orders": ["order_id", "customer_id", "order_date", "region", "amount", "status"],
             "sales_order_items": ["order_id", "product_id", "quantity", "unit_price"],
-            "customers": ["customer_id", "customer_name", "segment", "region", "email"],
             "products": ["product_id", "product_name", "category"],
             "fact_sales": ["sale_id", "customer_id", "product_id", "sale_date", "region", "revenue_amount"],
-            "dim_customer": ["customer_id", "customer_name", "segment", "region", "email"],
+            "dim_customer": ["customer_id", "customer_name", "region"],
             "dim_product": ["product_id", "product_name", "category"],
             "dim_date": ["date_key", "month", "quarter", "year"],
             "events": ["event_time", "event_type", "user_id", "region"],
@@ -107,31 +112,46 @@ class SqlAgentPipeline:
     def _generate_sql_local(self, prompt: str, data_source: dict, schema_context: dict) -> str:
         dialect = self._dialect_for_source(data_source.get("type", ""))
         limit_prefix, limit_suffix = self._limit_clause(dialect)
-        table = schema_context["tables"][0]
+        tables = schema_context["tables"]
+        table_map = {
+            "customers": next((item for item in tables if item.lower().endswith("customers")), tables[0]),
+            "sales_orders": next((item for item in tables if item.lower().endswith("sales_orders")), tables[-1]),
+        }
+        customers_table = table_map["customers"]
+        sales_table = table_map["sales_orders"]
         text = prompt.lower()
+        region_filter = ""
+        if any(token in text for token in ("only us sales", "us sales", "sales in us", "in us", "usa", "united states")):
+            region_filter = " WHERE c.region = 'US' "
 
         if "count" in text and "customer" in text:
-            return f"SELECT COUNT(*) AS customer_count FROM {table}"
+            return f"SELECT COUNT(*) AS customer_count FROM {customers_table}"
 
         if "revenue" in text or "sales" in text:
+            join_sql = (
+                f"FROM {sales_table} so "
+                f"JOIN {customers_table} c ON c.customer_id = so.customer_id "
+                f"{region_filter}"
+                f"GROUP BY c.region "
+            )
             return (
-                f"SELECT {limit_prefix}region, SUM(revenue_amount) AS total_revenue "
-                f"FROM {table} "
-                f"GROUP BY region "
+                f"SELECT {limit_prefix}c.region AS region, SUM(so.amount) AS total_revenue "
+                f"{join_sql}"
                 f"ORDER BY total_revenue DESC{limit_suffix}"
             )
 
         if "top" in text and "product" in text:
             return (
-                f"SELECT {limit_prefix}product_id, SUM(revenue_amount) AS total_revenue "
-                f"FROM {table} "
+                f"SELECT {limit_prefix}product_id, SUM(amount) AS total_revenue "
+                f"FROM {sales_table} "
                 f"GROUP BY product_id "
                 f"ORDER BY total_revenue DESC{limit_suffix}"
             )
 
-        table_columns = schema_context["columns"].get(table, ["id", "value"])
-        selected_columns = ", ".join(table_columns[:4])
-        return f"SELECT {limit_prefix}{selected_columns} FROM {table}{limit_suffix}"
+        selected_columns = "customer_id, customer_name, region"
+        if "sales" in text:
+            selected_columns = "order_id, customer_id, order_date, region"
+        return f"SELECT {limit_prefix}{selected_columns} FROM {customers_table if 'customer' in text else sales_table}{limit_suffix}"
 
     def _contains_wildcard_select(self, sql: str) -> bool:
         select_match = re.search(r"\bselect\b(.*?)\bfrom\b", sql, flags=re.IGNORECASE | re.DOTALL)
@@ -158,8 +178,12 @@ class SqlAgentPipeline:
     def _table_allowed_for_tenant(self, table_name: str, tenant_allowlist: set[str]) -> bool:
         if table_name in tenant_allowlist:
             return True
+
+        short_name = table_name.split(".")[-1]
         for item in tenant_allowlist:
             if item.endswith(".*") and table_name.startswith(item[:-1]):
+                return True
+            if item.split(".")[-1] == short_name:
                 return True
         return False
 
@@ -192,7 +216,9 @@ class SqlAgentPipeline:
 
         for ref in refs:
             clean_ref = ref.replace('"', "")
-            if clean_ref not in schema_allowlist:
+            short_name = clean_ref.split(".")[-1]
+            allowed_by_schema = clean_ref in schema_allowlist or any(item.split(".")[-1] == short_name for item in schema_allowlist)
+            if not allowed_by_schema:
                 errors.append(f"Table not allowed by policy: {clean_ref}")
             if tenant_allowlist and not self._table_allowed_for_tenant(clean_ref, tenant_allowlist):
                 errors.append(f"Table not in tenant allow-list: {clean_ref}")

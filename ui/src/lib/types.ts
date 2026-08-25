@@ -83,6 +83,9 @@ export interface ChatMessage {
   timestamp: string;
   exportable?: boolean;
   tableData?: string[][];
+  sqlQuery?: string;
+  sqlDialect?: string;
+  sqlValidation?: string;
 }
 
 export interface SubscriptionPlanDetails {

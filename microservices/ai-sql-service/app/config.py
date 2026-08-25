@@ -39,18 +39,50 @@ class Settings:
                     "testing.sales_order_items",
                     "testing.customers",
                     "testing.products",
+                    "report_platform.sales_orders",
+                    "report_platform.sales_order_items",
+                    "report_platform.customers",
+                    "report_platform.products",
+                ],
+                "tenant-acme": [
+                    "testing.sales_orders",
+                    "testing.sales_order_items",
+                    "testing.customers",
+                    "testing.products",
+                    "report_platform.sales_orders",
+                    "report_platform.sales_order_items",
+                    "report_platform.customers",
+                    "report_platform.products",
+                ],
+                "tenant-1": [
+                    "testing.sales_orders",
+                    "testing.sales_order_items",
+                    "testing.customers",
+                    "testing.products",
+                    "report_platform.sales_orders",
+                    "report_platform.sales_order_items",
+                    "report_platform.customers",
+                    "report_platform.products",
                 ],
                 "org-spartexai": [
                     "testing.sales_orders",
                     "testing.sales_order_items",
                     "testing.customers",
                     "testing.products",
+                    "report_platform.sales_orders",
+                    "report_platform.sales_order_items",
+                    "report_platform.customers",
+                    "report_platform.products",
                 ],
                 "bbe41162-bb3c-4d02-b0fc-ce48d7905d33": [
                     "testing.sales_orders",
                     "testing.sales_order_items",
                     "testing.customers",
                     "testing.products",
+                    "report_platform.sales_orders",
+                    "report_platform.sales_order_items",
+                    "report_platform.customers",
+                    "report_platform.products",
                 ],
             }
 
@@ -67,10 +99,18 @@ class Settings:
         return allowlist
 
     def __init__(self) -> None:
-        self.google_adk_agent_url = os.getenv("GOOGLE_ADK_AGENT_URL", "").strip()
+        raw_adk_url = os.getenv("GOOGLE_ADK_AGENT_URL", "").strip()
+        if not raw_adk_url:
+            raw_adk_url = "http://google-adk-agent:8001/agent"
+        self.google_adk_agent_url = raw_adk_url
+
         self.vault_secret_path = os.getenv("VAULT_SECRET_PATH", "secret/data/report-platform").strip()
         self.vault_google_adk_api_key_field = os.getenv("VAULT_GOOGLE_ADK_API_KEY_FIELD", "GOOGLE_ADK_AGENT_API_KEY").strip()
-        self.google_adk_agent_api_key = os.getenv("GOOGLE_ADK_AGENT_API_KEY", "").strip()
+        self.google_adk_agent_api_key = os.getenv("GOOGLE_ADK_AGENT_API_KEY", "local-adk-test-key").strip() or "local-adk-test-key"
+
+        if "generativelanguage.googleapis.com" in self.google_adk_agent_url and not self.google_adk_agent_api_key:
+            self.google_adk_agent_url = "http://google-adk-agent:8001/agent"
+
         if "generativelanguage.googleapis.com" in self.google_adk_agent_url:
             try:
                 vault_key = read_secret_field(self.vault_secret_path, self.vault_google_adk_api_key_field)
@@ -78,7 +118,8 @@ class Settings:
                 vault_key = None
             if vault_key:
                 self.google_adk_agent_api_key = vault_key
-        self.google_gemini_model = os.getenv("GOOGLE_GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
+
+        self.google_gemini_model = os.getenv("GOOGLE_GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
         self.max_sql_limit = self._as_int(os.getenv("MAX_SQL_LIMIT", "1000"), 1000)
         self.deny_star_select = self._as_bool(os.getenv("DENY_STAR_SELECT", "true"), True)
         self.enforce_row_limit = self._as_bool(os.getenv("ENFORCE_ROW_LIMIT", "true"), True)

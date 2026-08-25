@@ -65,17 +65,20 @@ export function ReportChat({ dataSources }: ReportChatProps) {
       await streamReportJob(jobId, (event) => {
         setProgressMessage(event.message || `Progress: ${event.progress}%`);
 
-        if (event.status === "completed" && event.content) {
+        if (event.status === "completed" && (event.content || event.sqlQuery || event.tableData)) {
           const sqlSection = event.sqlQuery
             ? `\n\nSQL (${(event.sqlDialect ?? "ansi").toUpperCase()}):\n${event.sqlQuery}`
             : "";
           const response: ChatMessage = {
             id: jobId,
             role: "assistant",
-            content: `${event.content}${sqlSection}\n\nHere is a preview of the results:`,
+            content: `${event.content ?? "Report ready"}${sqlSection}\n\nHere is a preview of the results:`,
             timestamp: new Date().toISOString(),
             exportable: true,
             tableData: event.tableData,
+            sqlQuery: event.sqlQuery,
+            sqlDialect: event.sqlDialect,
+            sqlValidation: event.sqlValidation,
           };
           setMessages((prev) => [...prev, response]);
         }

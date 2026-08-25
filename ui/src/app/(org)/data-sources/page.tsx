@@ -24,7 +24,7 @@ export default function DataSourcesPage() {
   const [warnings, setWarnings] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof typeof form, boolean>>>({});
-  const [form, setForm] = useState({
+  const blankForm = {
     name: "",
     type: "oracle" as DataSourceType,
     connectionUrl: "",
@@ -36,8 +36,17 @@ export default function DataSourcesPage() {
     username: "",
     password: "",
     accessMode: "read" as "read" | "write",
-    readOnlyConfirmed: true,
-  });
+    readOnlyConfirmed: false,
+  };
+  const [form, setForm] = useState(blankForm);
+
+  const resetFormToBlank = () => {
+    setForm(blankForm);
+    setTouchedFields({});
+    setSubmitted(false);
+    resetTestState();
+    setFormError("");
+  };
 
   const canManage = user ? isOrgAdmin(user.role) : false;
 
@@ -58,14 +67,14 @@ export default function DataSourcesPage() {
   > = {
     oracle: {
       name: "Oracle Finance",
-      connectionUrl: "jdbc:oracle:thin:@//oracle:1521/FREEPDB1",
-      host: "oracle",
+      connectionUrl: "jdbc:oracle:thin:@//db.example.com:1521/ORCL",
+      host: "db.example.com",
       port: "1521",
       databaseLabel: "Service Name / Database",
-      databasePlaceholder: "FREEPDB1",
+      databasePlaceholder: "ORCL",
       schemaLabel: "Schema / Owner (optional)",
-      schemaPlaceholder: "REPORT_OWNER",
-      username: "report_ro",
+      schemaPlaceholder: "APP_OWNER",
+      username: "readonly_user",
       filePath: "/data/reports/sales.xlsx",
     },
     teradata: {
@@ -125,6 +134,10 @@ export default function DataSourcesPage() {
       .then((data) => setSources(data.dataSources))
       .finally(() => setLoading(false));
   };
+
+  useEffect(() => {
+    resetFormToBlank();
+  }, []);
 
   useEffect(() => {
     loadSources();
@@ -325,7 +338,12 @@ export default function DataSourcesPage() {
           </p>
         </div>
         {canManage && (
-          <Button onClick={() => setShowForm(!showForm)}>
+          <Button
+            onClick={() => {
+              setShowForm(true);
+              resetFormToBlank();
+            }}
+          >
             <Plus className="h-4 w-4" />
             Add Data Source
           </Button>
@@ -333,12 +351,27 @@ export default function DataSourcesPage() {
       </div>
 
       {showForm && canManage && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Register New Data Source</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4">
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            <Card className="border-0 shadow-none">
+              <CardHeader>
+                <div className="flex items-center justify-between gap-4">
+                  <CardTitle>Register New Data Source</CardTitle>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="!border-slate-200 !bg-white !text-slate-600 hover:!bg-slate-50"
+                    onClick={() => {
+                      setShowForm(false);
+                      resetFormToBlank();
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="grid gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="name">Name</Label>
                 <Input
@@ -444,7 +477,7 @@ export default function DataSourcesPage() {
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
-                      type="password"
+                      type="text"
                       required
                       value={form.password}
                       onChange={(e) => setField("password", e.target.value)}
@@ -546,16 +579,17 @@ export default function DataSourcesPage() {
                   className="!border-sky-600 !bg-sky-600 !text-white hover:!bg-sky-500 hover:!text-white"
                   onClick={() => {
                     setShowForm(false);
-                    resetValidationState();
-                    resetTestState();
+                    resetFormToBlank();
                   }}
                 >
                   Cancel
                 </Button>
               </div>
-            </form>
-          </CardContent>
-        </Card>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

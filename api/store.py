@@ -14,7 +14,54 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _local_oracle_demo_source() -> dict:
+    return {
+        "id": "ds-oracle-1",
+        "name": "Local Oracle Lab",
+        "type": "oracle",
+        "connectionUrl": "jdbc:oracle:thin:@//oracle:1521/FREEPDB1",
+        "host": "oracle",
+        "port": 1521,
+        "database": "FREEPDB1",
+        "schema": "report_owner",
+        "filePath": None,
+        "accessMode": "read",
+        "status": "connected",
+        "lastValidatedAt": _now_iso(),
+        "lastUsed": _now_iso(),
+        "queryCount": 0,
+    }
+
+
+def _sanitize_seeded_demo_datasources(redis_client) -> None:
+    tenant_ids = ["org-acme", "org-hsbc", "org-startup", "org-spartexai"]
+    for tenant_id in tenant_ids:
+        sources = get_data_sources(redis_client, tenant_id)
+        updated = False
+        if not sources:
+            if tenant_id == "org-acme":
+                sources = [ _local_oracle_demo_source() ]
+                updated = True
+            else:
+                continue
+
+        for source in sources:
+            if source.get("type") == "oracle" and (
+                source.get("name") == "Production Oracle"
+                or source.get("host") in {"oracle-prod.internal", "oracle-prod"}
+                or source.get("database") in {"FINWARE"}
+            ):
+                source.update(_local_oracle_demo_source())
+                source["id"] = source.get("id") or "ds-oracle-1"
+                updated = True
+
+        if updated:
+            save_data_sources(redis_client, tenant_id, sources)
+
+
 def seed_store(redis_client) -> None:
+    _sanitize_seeded_demo_datasources(redis_client)
+
     if redis_client.get("platform:seeded"):
         return
 
@@ -68,17 +115,7 @@ def seed_store(redis_client) -> None:
     redis_client.set(ORGANIZATIONS_KEY, json.dumps(orgs))
 
     acme_sources = [
-        {
-            "id": "ds-oracle-1",
-            "name": "Production Oracle",
-            "type": "oracle",
-            "host": "oracle-prod.internal",
-            "port": 1521,
-            "database": "FINWARE",
-            "status": "connected",
-            "lastUsed": _now_iso(),
-            "queryCount": 8420,
-        },
+        _local_oracle_demo_source(),
         {
             "id": "ds-hive-1",
             "name": "Analytics Hive",

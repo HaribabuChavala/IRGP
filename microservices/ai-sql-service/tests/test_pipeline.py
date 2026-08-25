@@ -35,6 +35,23 @@ def test_generate_sql_local_valid_for_tenant_allowlist() -> None:
     assert result.provider == "ai-sql-service-local-fallback"
 
 
+def test_generate_sql_local_respects_us_region_filter() -> None:
+    _apply_strict_defaults()
+    pipeline = SqlAgentPipeline()
+
+    result = asyncio.run(
+        pipeline.generate_sql(
+            prompt="only US sales",
+            data_source={"id": "ds-1", "name": "Oracle Sales", "type": "oracle", "database": "testing"},
+            tenant_id="tenant-a",
+        )
+    )
+
+    assert result.valid is True
+    assert "WHERE C.REGION = 'US'" in result.sql.upper()
+    assert "SUM(SO.AMOUNT)" in result.sql.upper()
+
+
 def test_deny_star_select() -> None:
     _apply_strict_defaults()
     pipeline = SqlAgentPipeline()

@@ -11,6 +11,15 @@ Components:
 - FastAPI: sample backend
 - Next.js UI: Instant Report Generation Platform frontend
 
+## Developer quick start
+
+For a concise Docker-first setup and a one-command minimal verification of all services (including Oracle and Teradata internal testing), see:
+
+- DEVELOPER_DOCKER_SETUP.md
+- scripts/Minimal-Service-Test.ps1
+- scripts/Start-Full-Stack.ps1
+- scripts/Stop-Full-Stack.ps1
+
 ## Prerequisites
 
 Windows 11 + Docker Desktop using WSL 2.
