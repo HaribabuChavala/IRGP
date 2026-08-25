@@ -1,0 +1,1 @@
+﻿{"protocol":"openid-connect","protocolMapper":"oidc-hardcoded-claim-mapper","name":"tenant_id","config":{"claim.value":"tenant-acme","id.token.claim":"true","access.token.claim":"true","claim.name":"tenant_id","jsonType.label":"String"}}

@@ -1,0 +1,328 @@
+openapi: 3.1.0
+info:
+  title: Instant Report Generation Platform API
+  version: 1.0.0
+  description: OpenAPI contract for the 10 FastAPI microservices that power the Instant Report Generation Platform.
+servers:
+  - url: http://localhost:8000
+    description: Default service gateway
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: User login
+      tags: [Auth]
+      responses:
+        '200':
+          description: Successful login
+  /api/v1/auth/me:
+    get:
+      summary: Current authenticated user
+      tags: [Auth]
+      responses:
+        '200':
+          description: User details
+  /api/v1/auth/refresh:
+    post:
+      summary: Refresh access token
+      tags: [Auth]
+      responses:
+        '200':
+          description: Refreshed token
+
+  /api/v1/admin/users:
+    get:
+      summary: List users
+      tags: [User Management]
+      responses:
+        '200':
+          description: User list
+    post:
+      summary: Register a user
+      tags: [User Management]
+      responses:
+        '201':
+          description: User created
+
+  /api/v1/admin/users/{user_id}:
+    patch:
+      summary: Update user
+      tags: [User Management]
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: User updated
+
+  /api/v1/admin/organizations:
+    get:
+      summary: List organizations
+      tags: [Organization Registration]
+      responses:
+        '200':
+          description: Organization list
+    post:
+      summary: Register an organization
+      tags: [Organization Registration]
+      responses:
+        '201':
+          description: Organization created
+
+  /api/v1/admin/organizations/{organization_id}:
+    get:
+      summary: Get organization details
+      tags: [Organization Registration]
+      parameters:
+        - in: path
+          name: organization_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Organization OK
+
+  /api/v1/admin/dashboard:
+    get:
+      summary: Platform admin dashboard
+      tags: [Platform Admin]
+      responses:
+        '200':
+          description: Dashboard data
+
+  /api/v1/admin/platform/stats:
+    get:
+      summary: Platform statistics
+      tags: [Platform Admin]
+      responses:
+        '200':
+          description: Stats payload
+
+  /api/v1/org/dashboard:
+    get:
+      summary: Organization landing dashboard
+      tags: [Org Portal]
+      responses:
+        '200':
+          description: Dashboard data
+
+  /api/v1/org/data-sources:
+    get:
+      summary: List organization data sources
+      tags: [Org Portal]
+      responses:
+        '200':
+          description: Datasource list
+
+  /api/v1/subscriptions/plans:
+    get:
+      summary: List available subscription plans
+      tags: [Subscriptions]
+      responses:
+        '200':
+          description: Subscription plans
+
+  /api/v1/organizations/{organization_id}/subscription:
+    get:
+      summary: Get current subscription
+      tags: [Subscriptions]
+      parameters:
+        - in: path
+          name: organization_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current subscription status
+
+  /api/v1/organizations/{organization_id}/subscription/upgrade:
+    post:
+      summary: Upgrade organization subscription
+      tags: [Subscriptions]
+      parameters:
+        - in: path
+          name: organization_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Subscription upgraded
+
+  /api/v1/notifications:
+    get:
+      summary: List notifications
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Notifications list
+    post:
+      summary: Create notification
+      tags: [Notifications]
+      responses:
+        '201':
+          description: Notification created
+
+  /api/v1/notifications/{notification_id}/read:
+    patch:
+      summary: Mark notification as read
+      tags: [Notifications]
+      parameters:
+        - in: path
+          name: notification_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Notification read update
+
+  /api/v1/reminders:
+    get:
+      summary: List reminders
+      tags: [Reminders]
+      responses:
+        '200':
+          description: Reminder list
+    post:
+      summary: Create reminder
+      tags: [Reminders]
+      responses:
+        '201':
+          description: Reminder created
+
+  /api/v1/data-sources:
+    get:
+      summary: List data sources
+      tags: [Data Sources]
+      responses:
+        '200':
+          description: Data source list
+    post:
+      summary: Register a data source
+      tags: [Data Sources]
+      responses:
+        '201':
+          description: Data source created
+
+  /api/v1/reports/generate:
+    post:
+      summary: Generate a report from prompt and data source
+      tags: [Reports]
+      responses:
+        '202':
+          description: Report generation accepted
+
+  /api/v1/reports/{report_id}:
+    get:
+      summary: Retrieve report by id
+      tags: [Reports]
+      parameters:
+        - in: path
+          name: report_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Report returned
+
+  /api/v1/reports/jobs/{job_id}/status:
+    get:
+      summary: Get report job status
+      tags: [Reports]
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job status
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        organizationId:
+          type: string
+        tenantId:
+          type: string
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        plan:
+          type: string
+        region:
+          type: string
+        status:
+          type: string
+    DataSource:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        database:
+          type: string
+        status:
+          type: string
+    SubscriptionPlan:
+      type: object
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        price:
+          type: number
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        message:
+          type: string
+        read:
+          type: boolean
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

@@ -1,0 +1,53 @@
+name: smoke-test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Compose
+        run: docker compose version
+
+      - name: Start base stack
+        run: docker compose up -d --build
+
+      - name: Start microservice override stack
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --build
+
+      - name: Wait for services
+        run: sleep 20
+
+      - name: Run smoke checks
+        run: |
+          curl -fsS http://localhost:8088/dashboard/ >/dev/null
+          curl -fsS http://localhost:8081/realms/report-platform >/dev/null
+          curl -fsS http://report.localhost/health >/dev/null
+          curl -fsS http://auth.localhost/health >/dev/null
+          curl -fsS http://users.localhost/health >/dev/null
+          curl -fsS http://orgs.localhost/health >/dev/null
+          curl -fsS http://platform-admin.localhost/health >/dev/null
+          curl -fsS http://portal.localhost/health >/dev/null
+          curl -fsS http://subscriptions.localhost/health >/dev/null
+          curl -fsS http://notifications.localhost/health >/dev/null
+          curl -fsS http://reminders.localhost/health >/dev/null
+          curl -fsS http://datasources.localhost/health >/dev/null
+          curl -fsS http://reports.localhost/health >/dev/null
+          curl -fsS http://audit.localhost/health >/dev/null
+          curl -fsS http://scheduler.localhost/health >/dev/null
+          curl -fsS http://observability.localhost/health >/dev/null
+          curl -fsS http://export.localhost/health >/dev/null
+          curl -fsS http://billing.localhost/health >/dev/null
+          echo "Smoke tests passed"
+
+      - name: Stop stack
+        if: always()
+        run: docker compose down -v

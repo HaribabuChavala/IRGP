@@ -1,0 +1,9 @@
+﻿{
+  "resource": {
+    "type": "report",
+    "id": "999",
+    "tenant_id": "tenant-other",
+    "region": "eu-west"
+  },
+  "action": "read"
+}

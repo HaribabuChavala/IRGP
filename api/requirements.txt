@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+httpx
+PyJWT
+cryptography
+redis
+hvac
+openpyxl
+fpdf2
+sqlalchemy
+psycopg[binary]
+email-validator
+oracledb
+teradatasql
+impyla

@@ -1,0 +1,140 @@
+microservices/
+├── README.md
+├── openapi/
+│   └── instant-report-platform-openapi.yaml
+├── auth-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── security.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── auth_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── user-management-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── users_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── org-registration-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── organizations_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── platform-admin-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── admin_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── org-portal-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── org_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── subscription-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── subscription_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── notification-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── notification_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── reminder-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── reminder_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── data-source-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   └── api/
+│   │       └── datasource_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── report-generation-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   ├── config.py
+│   │   ├── db.py
+│   │   ├── models.py
+│   │   ├── workers.py
+│   │   └── api/
+│   │       └── report_routes.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── audit-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── security.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── scheduler-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── security.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── observability-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── security.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── export-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── security.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── billing-service/
+│   ├── app/
+│   │   ├── main.py
+│   │   └── security.py
+│   ├── requirements.txt
+│   └── Dockerfile
+└── shared/
+    ├── common_auth.py
+    ├── common_settings.py
+    └── common_models.py

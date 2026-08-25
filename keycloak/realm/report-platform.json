@@ -1,0 +1,155 @@
+{
+  "realm": "report-platform",
+  "enabled": true,
+  "displayName": "Instant Report Platform",
+  "roles": {
+    "realm": [
+      {"name": "PLATFORM_ADMIN", "description": "Platform-wide administration"},
+      {"name": "REPORT_ADMIN", "description": "Organization admin — data sources and subscriptions"},
+      {"name": "REPORT_USER", "description": "Can create and view reports"}
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "report-platform-ui",
+      "name": "Instant Report Platform UI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": [
+        "http://localhost:3000/*",
+        "http://app.localhost/*",
+        "http://report.localhost/*"
+      ],
+      "webOrigins": [
+        "http://localhost:3000",
+        "http://app.localhost",
+        "http://report.localhost",
+        "+"
+      ],
+      "protocolMappers": [
+        {
+          "name": "tenant_id",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "tenant_id",
+            "claim.name": "tenant_id",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "region",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "region",
+            "claim.name": "region",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "organization_name",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "organization_name",
+            "claim.name": "organization_name",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "report-ui",
+      "name": "Report Platform UI (legacy)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://report.localhost/*", "http://localhost:3000/*"],
+      "webOrigins": ["http://report.localhost", "http://localhost:3000"]
+    }
+  ],
+  "users": [
+    {
+      "username": "platform-admin",
+      "enabled": true,
+      "email": "platform-admin@report-platform.local",
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "credentials": [
+        {"type": "password", "value": "platform-admin-password", "temporary": false}
+      ],
+      "realmRoles": ["PLATFORM_ADMIN"],
+      "attributes": {
+        "tenant_id": ["platform"],
+        "region": ["global"],
+        "organization_name": ["Instant Report Platform"]
+      }
+    },
+    {
+      "username": "org-admin",
+      "enabled": true,
+      "email": "org-admin@acme.com",
+      "firstName": "Sarah",
+      "lastName": "Chen",
+      "credentials": [
+        {"type": "password", "value": "org-admin-password", "temporary": false}
+      ],
+      "realmRoles": ["REPORT_ADMIN"],
+      "attributes": {
+        "tenant_id": ["org-acme"],
+        "region": ["us-east"],
+        "organization_name": ["Acme Financial"]
+      }
+    },
+    {
+      "username": "hari",
+      "enabled": true,
+      "email": "hari@spartexai.com",
+      "firstName": "Hari",
+      "lastName": "Admin",
+      "credentials": [
+        {"type": "password", "value": "hari-password", "temporary": false}
+      ],
+      "realmRoles": ["REPORT_ADMIN"],
+      "attributes": {
+        "tenant_id": ["org-spartexai"],
+        "region": ["us-east"],
+        "organization_name": ["Spartexai"]
+      }
+    },
+    {
+      "username": "report-user",
+      "enabled": true,
+      "email": "report-user@example.local",
+      "firstName": "James",
+      "lastName": "Wilson",
+      "credentials": [
+        {"type": "password", "value": "report-user-password", "temporary": false}
+      ],
+      "realmRoles": ["REPORT_USER"],
+      "attributes": {
+        "tenant_id": ["org-acme"],
+        "region": ["us-east"],
+        "organization_name": ["Acme Financial"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,106 @@
+services:
+
+  audit-service:
+    build: ./microservices/audit-service
+    container_name: access-audit-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./audit_service.db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.audit-service.rule=Host(`audit.localhost`)"
+      - "traefik.http.routers.audit-service.entrypoints=web"
+      - "traefik.http.services.audit-service.loadbalancer.server.port=8000"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - access-net
+
+  scheduler-service:
+    build: ./microservices/scheduler-service
+    container_name: access-scheduler-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./scheduler_service.db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.scheduler-service.rule=Host(`scheduler.localhost`)"
+      - "traefik.http.routers.scheduler-service.entrypoints=web"
+      - "traefik.http.services.scheduler-service.loadbalancer.server.port=8000"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - access-net
+
+  observability-service:
+    build: ./microservices/observability-service
+    container_name: access-observability-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./observability_service.db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.observability-service.rule=Host(`observability.localhost`)"
+      - "traefik.http.routers.observability-service.entrypoints=web"
+      - "traefik.http.services.observability-service.loadbalancer.server.port=8000"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - access-net
+
+  export-service:
+    build: ./microservices/export-service
+    container_name: access-export-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./export_service.db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.export-service.rule=Host(`export.localhost`)"
+      - "traefik.http.routers.export-service.entrypoints=web"
+      - "traefik.http.services.export-service.loadbalancer.server.port=8000"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - access-net
+
+  billing-service:
+    build: ./microservices/billing-service
+    container_name: access-billing-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: sqlite:///./billing_service.db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev-secret-change-me}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+    expose:
+      - "8000"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.billing-service.rule=Host(`billing.localhost`)"
+      - "traefik.http.routers.billing-service.entrypoints=web"
+      - "traefik.http.services.billing-service.loadbalancer.server.port=8000"
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - access-net

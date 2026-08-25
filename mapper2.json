@@ -1,0 +1,1 @@
+﻿{"protocol":"openid-connect","protocolMapper":"oidc-usermodel-attribute-mapper","name":"region","config":{"user.attribute":"region","id.token.claim":"true","access.token.claim":"true","claim.name":"region","jsonType.label":"String"}}
