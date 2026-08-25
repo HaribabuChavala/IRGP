@@ -68,44 +68,93 @@ def init_db() -> None:
             db.commit()
 
     with SessionLocal() as db:
-        if db.query(User).count() == 0:
-            role_lookup = {role.name: role.id for role in db.query(Role).all()}
-            default_users = [
-                {
-                    "email": "hari@spartexai.com",
-                    "username": "hari",
-                    "full_name": "Hari Admin",
-                    "organization_id": "org-spartexai",
-                    "role": "REPORT_ADMIN",
-                },
-                {
-                    "email": "alex@spartexai.com",
-                    "username": "alex",
-                    "full_name": "Alex User",
-                    "organization_id": "org-spartexai",
-                    "role": "REPORT_USER",
-                },
-            ]
+        role_lookup = {role.name: role.id for role in db.query(Role).all()}
+        default_users = [
+            {
+                "email": "platform-admin@report-platform.local",
+                "username": "platform-admin",
+                "full_name": "Platform Admin",
+                "organization_id": None,
+                "tenant_id": "platform",
+                "organization_name": "Instant Report Platform",
+                "region": "global",
+                "role": "PLATFORM_ADMIN",
+            },
+            {
+                "email": "org-admin@acme.com",
+                "username": "org-admin",
+                "full_name": "Sarah Chen",
+                "organization_id": "org-acme",
+                "tenant_id": "org-acme",
+                "organization_name": "Acme Financial",
+                "region": "us-east",
+                "role": "REPORT_ADMIN",
+            },
+            {
+                "email": "report-user@example.local",
+                "username": "report-user",
+                "full_name": "James Wilson",
+                "organization_id": "org-acme",
+                "tenant_id": "org-acme",
+                "organization_name": "Acme Financial",
+                "region": "us-east",
+                "role": "REPORT_USER",
+            },
+            {
+                "email": "hari@spartexai.com",
+                "username": "hari",
+                "full_name": "Hari Admin",
+                "organization_id": "org-spartexai",
+                "tenant_id": "org-spartexai",
+                "organization_name": "Spartexai",
+                "region": "us-east",
+                "role": "REPORT_ADMIN",
+            },
+            {
+                "email": "alex@spartexai.com",
+                "username": "alex",
+                "full_name": "Alex User",
+                "organization_id": "org-spartexai",
+                "tenant_id": "org-spartexai",
+                "organization_name": "Spartexai",
+                "region": "us-east",
+                "role": "REPORT_USER",
+            },
+        ]
 
-            for item in default_users:
-                org_exists = db.get(Organization, item["organization_id"])
-                if org_exists is None:
-                    continue
-                if not db.query(User).filter(User.email == item["email"]).first():
-                    user = User(
-                        email=item["email"],
-                        username=item["username"],
-                        full_name=item["full_name"],
-                        organization_id=item["organization_id"],
-                        organization_name="Spartexai",
-                        region="us-east",
-                        status="active",
-                    )
-                    db.add(user)
-                    db.flush()
+        for item in default_users:
+            org_exists = db.get(Organization, item["organization_id"]) if item["organization_id"] else True
+            if org_exists is None:
+                continue
 
-                    role_id = role_lookup.get(item["role"])
-                    if role_id is not None and not db.query(UserRole).filter_by(user_id=user.id, role_id=role_id).first():
-                        db.add(UserRole(user_id=user.id, role_id=role_id))
+            user_record = db.query(User).filter(User.email == item["email"]).first()
+            if user_record is None:
+                user_record = db.query(User).filter(User.username == item["username"]).first()
 
-            db.commit()
+            if user_record is None:
+                user_record = User(
+                    email=item["email"],
+                    username=item["username"],
+                    full_name=item["full_name"],
+                    organization_id=item["organization_id"],
+                    tenant_id=item.get("tenant_id"),
+                    organization_name=item.get("organization_name"),
+                    region=item.get("region", "us-east"),
+                    status="active",
+                )
+                db.add(user_record)
+                db.flush()
+            else:
+                user_record.full_name = user_record.full_name or item["full_name"]
+                user_record.organization_id = item["organization_id"] or user_record.organization_id
+                user_record.tenant_id = item.get("tenant_id") or user_record.tenant_id
+                user_record.organization_name = item.get("organization_name") or user_record.organization_name
+                user_record.region = item.get("region") or user_record.region
+                user_record.username = item["username"]
+                user_record.email = item["email"]
+
+            role_id = role_lookup.get(item["role"])
+            if role_id is not None and not db.query(UserRole).filter_by(user_id=user_record.id, role_id=role_id).first():
+                db.add(UserRole(user_id=user_record.id, role_id=role_id))
+
+        db.commit()

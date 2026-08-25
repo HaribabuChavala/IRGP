@@ -16,7 +16,7 @@ import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 try:
@@ -74,6 +74,40 @@ def generate_temp_password(length: int = 16) -> str:
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def _resolve_log_organization_id(organization_id: str | None, user_id: str | None) -> str | None:
+    if organization_id:
+        return organization_id
+    if not user_id:
+        return None
+    try:
+        with SessionLocal() as db:
+            user_record = db.query(User).filter(or_(User.id == user_id, User.keycloak_user_id == user_id)).first()
+            if user_record is not None:
+                return user_record.organization_id or user_record.tenant_id
+    except Exception:
+        pass
+    return None
+
+
+def _resolve_db_user_id(user_id: str | None, *, email: str | None = None, username: str | None = None) -> str | None:
+    if not user_id and not email and not username:
+        return None
+    try:
+        with SessionLocal() as db:
+            candidate = None
+            if user_id:
+                candidate = db.query(User).filter(or_(User.id == user_id, User.keycloak_user_id == user_id)).first()
+            if candidate is None and email:
+                candidate = db.query(User).filter(User.email == email).first()
+            if candidate is None and username:
+                candidate = db.query(User).filter(User.username == username).first()
+            if candidate is not None:
+                return candidate.id
+    except Exception:
+        pass
+    return user_id or None
+
+
 def _record_execution_log(
     *,
     organization_id: str | None,
@@ -88,16 +122,21 @@ def _record_execution_log(
     message: str,
     error_details: str | None = None,
     context: dict | None = None,
+    email: str | None = None,
+    username: str | None = None,
 ) -> None:
     if not organization_id and not user_id and not job_id and not data_source_id:
         return
+
+    resolved_org_id = _resolve_log_organization_id(organization_id, user_id)
+    resolved_user_id = _resolve_db_user_id(user_id, email=email, username=username)
 
     try:
         with SessionLocal() as db:
             db.add(
                 ExecutionLog(
-                    organization_id=organization_id,
-                    user_id=user_id,
+                    organization_id=resolved_org_id or organization_id,
+                    user_id=resolved_user_id,
                     job_id=job_id,
                     data_source_id=data_source_id,
                     execution_engine=execution_engine,
@@ -1206,9 +1245,18 @@ async def get_execution_logs(
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id missing from token")
 
+    current_user = db.query(User).filter(or_(User.email == user.email, User.username == user.username, User.id == user.user_id, User.keycloak_user_id == user.user_id)).first()
+    user_key_match = current_user.id if current_user else None
+
     logs = (
         db.query(ExecutionLog)
-        .filter(ExecutionLog.organization_id == tenant_id)
+        .filter(
+            or_(
+                ExecutionLog.organization_id == tenant_id,
+                ExecutionLog.user_id == user.user_id,
+                ExecutionLog.user_id == user_key_match,
+            )
+        )
         .order_by(ExecutionLog.created_at.desc())
         .limit(limit)
         .all()
@@ -1629,19 +1677,25 @@ async def _execute_report_sql_via_livy(
 
             text_value = data_section.get("text/plain")
             if isinstance(text_value, str) and text_value.strip():
-                return _extract_rows_from_output({"data": {"text/plain": text_value}})
+                output_for_parse = {"data": {"text/plain": text_value}}
+                parsed_rows = _extract_rows_from_output(output_for_parse)
+                if parsed_rows:
+                    return parsed_rows
 
-        text_value = output.get("text") or output.get("data", {}).get("text/plain") if isinstance(output.get("data"), dict) else None
+        text_value = output.get("text")
+        if not isinstance(text_value, str) and isinstance(output.get("data"), dict):
+            text_value = output["data"].get("text/plain")
         if isinstance(text_value, str) and text_value.strip():
             lines = [line.strip() for line in text_value.splitlines() if line.strip()]
             table_rows: list[list[str]] = []
             for line in lines:
                 if "|" not in line or line.startswith("+") or line.startswith("-"):
                     continue
-                cells = [cell.strip() for cell in line.strip("|").split("|")]
-                if not cells or all(not cell for cell in cells):
+                row_values = [cell.strip() for cell in line.strip("|").split("|")]
+                row_values = [cell for cell in row_values if cell != ""]
+                if not row_values or len(row_values) == 1 and row_values[0].startswith(("spark:", "df:", "res")):
                     continue
-                table_rows.append(cells)
+                table_rows.append(row_values)
             if len(table_rows) >= 2:
                 return table_rows
 
@@ -2132,6 +2186,8 @@ async def generate_report(
         status="info",
         message="Report request received from the UI",
         context={"prompt": body.prompt, "dataSourceId": body.dataSourceId, "executionEngine": execution_engine},
+        email=user.email,
+        username=user.username,
     )
 
     background_tasks.add_task(_run_report_job, job_id, body.prompt, data_source, execution_engine, user)
