@@ -36,6 +36,18 @@ copy .env.production.example .env.production
 
 This file is intended for environment injection and secret-managed deployment, not a checked-in production secret file.
 
+Run production preflight validation before deploy:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\production-preflight.ps1 -EnvFile .env.production
+```
+
+```bash
+./scripts/production-preflight.sh .env.production
+```
+
+See `PRODUCTION_SUPPORT.md` for the production support baseline and release checklist.
+
 ### 2. Ensure *.localhost aliases exist
 
 The routed services are exposed through Traefik using hostnames such as `report.localhost`, `app.localhost`, `auth.localhost`, and `audit.localhost`.
