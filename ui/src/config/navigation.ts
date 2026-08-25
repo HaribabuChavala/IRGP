@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   Bell,
   Building2,
   CreditCard,
@@ -29,6 +30,7 @@ export const orgNav: NavItem[] = [
   { label: "Instant Reports", href: "/reports", icon: MessageSquare },
   { label: "Data Sources", href: "/data-sources", icon: Database, adminOnly: true },
   { label: "Subscriptions", href: "/subscriptions", icon: CreditCard, adminOnly: true },
+  { label: "Logs", href: "/logs", icon: Activity },
   { label: "Notifications", href: "/notifications", icon: Bell },
   { label: "Reminders", href: "/reminders", icon: Clock },
 ];

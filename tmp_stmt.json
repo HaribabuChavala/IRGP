@@ -1,0 +1,1 @@
+﻿{"code":"val _spark = org.apache.spark.sql.SparkSession.builder().getOrCreate(); val _df = _spark.sql(\"SELECT 1 AS a, 2 AS b FROM dual\"); _df.show(20, false); _df"}

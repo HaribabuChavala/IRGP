@@ -2,6 +2,7 @@ import { env } from "@/config/env";
 import { ensureValidAccessToken } from "@/lib/keycloak";
 import type {
   DataSource,
+  ExecutionLogEntry,
   Notification,
   Organization,
   PlatformStats,
@@ -171,7 +172,10 @@ export const api = {
       recentExecutions: number;
       dataSources: DataSource[];
       queryHistory: QueryHistoryItem[];
-    }>("/api/v1/org/dashboard"),
+    }>('/api/v1/org/dashboard'),
+
+  executionLogs: () =>
+    apiFetch<{ logs: ExecutionLogEntry[] }>('/api/v1/org/logs'),
 
   dataSources: () =>
     apiFetch<{ dataSources: DataSource[] }>("/api/v1/org/data-sources"),
@@ -245,10 +249,10 @@ export const api = {
       body: JSON.stringify({ plan }),
     }),
 
-  generateReport: (prompt: string, dataSourceId: string) =>
-    apiFetch<{ jobId: string }>("/api/v1/reports/generate", {
+  generateReport: (prompt: string, dataSourceId: string, executionEngine: string = "spark") =>
+    apiFetch<{ jobId: string }> ("/api/v1/reports/generate", {
       method: "POST",
-      body: JSON.stringify({ prompt, dataSourceId }),
+      body: JSON.stringify({ prompt, dataSourceId, executionEngine }),
     }),
 };
 

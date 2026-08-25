@@ -1,0 +1,1 @@
+﻿{"kind":"spark","connectorType":"oracle","jdbcUrl":"jdbc:oracle:thin:@//oracle:1521/FREEPDB1","user":"report_ro","password":"ReportReadOnly123","partitionColumn":"1","numPartitions":1,"sql":"SELECT 1 AS a, 2 AS b FROM dual"}

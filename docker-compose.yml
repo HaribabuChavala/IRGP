@@ -265,6 +265,56 @@ services:
 
 
   # =========================================================
+  # LIVY SERVICE
+  # =========================================================
+
+  spark-livy:
+    build:
+      context: ./microservices
+      dockerfile: spark-livy/Dockerfile
+    container_name: access-spark-livy
+    restart: unless-stopped
+
+    environment:
+      SPARK_LOCAL_IP: 0.0.0.0
+      LIVY_SERVER_HOST: 0.0.0.0
+      LIVY_LOG_DIR: /tmp/livy
+      LIVY_STATE_DIR: /tmp/livy-state
+      LIVY_ORACLE_JAR: /opt/irgp/jars/oracle-connector-1.0.0.jar
+      LIVY_HIVE_JAR: /opt/irgp/jars/hive-connector-1.0.0.jar
+
+    ports:
+      - "8998:8998"
+
+    volumes:
+      - spark-jars:/opt/irgp/jars
+
+    networks:
+      - access-net
+
+
+  livy-service:
+    build: ./microservices/livy-service
+    container_name: access-livy-service
+    restart: unless-stopped
+
+    environment:
+      SERVER_PORT: 8090
+      LIVY_BASE_URL: ${LIVY_BASE_URL:-http://spark-livy:8998}
+      LIVY_ORACLE_JAR: ${LIVY_ORACLE_JAR:-/opt/irgp/jars/oracle-connector-1.0.0.jar}
+      LIVY_HIVE_JAR: ${LIVY_HIVE_JAR:-/opt/irgp/jars/hive-connector-1.0.0.jar}
+
+    expose:
+      - "8090"
+
+    depends_on:
+      - spark-livy
+
+    networks:
+      - access-net
+
+
+  # =========================================================
   # AI SQL SERVICE
   # =========================================================
 
@@ -341,6 +391,7 @@ services:
 
       # AI SQL generation microservice
       AI_SQL_SERVICE_URL: http://ai-sql-service:8000/generate-sql
+      LIVY_SERVICE_URL: http://livy-service:8090/api/livy
 
       # Email provider for temp-password invitations
       # Set EMAIL_PROVIDER to "smtp" or "sendgrid" and provide the matching secrets.
@@ -371,6 +422,7 @@ services:
       - vault
       - keycloak
       - ai-sql-service
+      - livy-service
 
     networks:
       - access-net
@@ -428,3 +480,4 @@ volumes:
   teradata-lab-data:
   redis-data:
   vault-data:
+  spark-jars:

@@ -59,6 +59,21 @@ export interface QueryHistoryItem {
   rowCount?: number;
 }
 
+export interface ExecutionLogEntry {
+  id: string;
+  jobId?: string;
+  dataSourceId?: string;
+  executionEngine?: string;
+  queryId?: string;
+  stage: string;
+  source: string;
+  status: "info" | "success" | "error" | "warning";
+  message: string;
+  errorDetails?: string;
+  context?: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface Notification {
   id: string;
   title: string;

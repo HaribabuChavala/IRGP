@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import secrets
 import socket
 import string
@@ -35,8 +36,8 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 
 import store
 from ai_sql_agent import sql_agent_service
-from database import get_db
-from models import DataSource, Organization, QueryHistory, ReportJob, User
+from database import SessionLocal, get_db
+from models import DataSource, ExecutionLog, Organization, QueryHistory, ReportJob, User
 from deps import (
     SecurityContext,
     get_current_user,
@@ -52,6 +53,7 @@ KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://keycloak:8080")
 KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "report-platform")
 KEYCLOAK_ADMIN_USERNAME = os.getenv("KEYCLOAK_ADMIN_USERNAME", "admin")
 KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "change-me-admin")
+LIVY_SERVICE_URL = os.getenv("LIVY_SERVICE_URL", "http://livy-service:8090/api/livy")
 
 WRITE_PRIVILEGE_KEYWORDS = {
     "ALL",
@@ -70,6 +72,47 @@ WRITE_PRIVILEGE_KEYWORDS = {
 def generate_temp_password(length: int = 16) -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _record_execution_log(
+    *,
+    organization_id: str | None,
+    user_id: str | None,
+    job_id: str | None,
+    data_source_id: str | None,
+    execution_engine: str | None,
+    query_id: str | None,
+    stage: str,
+    source: str,
+    status: str,
+    message: str,
+    error_details: str | None = None,
+    context: dict | None = None,
+) -> None:
+    if not organization_id and not user_id and not job_id and not data_source_id:
+        return
+
+    try:
+        with SessionLocal() as db:
+            db.add(
+                ExecutionLog(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    job_id=job_id,
+                    data_source_id=data_source_id,
+                    execution_engine=execution_engine,
+                    query_id=query_id,
+                    stage=stage,
+                    source=source,
+                    status=status,
+                    message=message[:4000],
+                    error_details=(error_details or None)[:4000] if error_details else None,
+                    context=context or {},
+                )
+            )
+            db.commit()
+    except Exception:
+        pass
 
 
 def map_role_to_keycloak_role(role: str) -> str:
@@ -408,6 +451,16 @@ async def _resolve_data_source_credentials(data_source: dict, tenant_id: str) ->
         resolved["password"] = "ReportReadOnly123"
         resolved["schema"] = resolved.get("schema") or "report_owner"
         resolved["database"] = resolved.get("database") or "FREEPDB1"
+        resolved["accessMode"] = resolved.get("accessMode") or "read"
+
+    if str(resolved.get("type", "")).lower() == "teradata" and (
+        str(resolved.get("host") or "").lower() in {"teradata-lab", "localhost", "127.0.0.1"}
+        or str(resolved.get("database") or "").lower() == "teradata_lab"
+    ):
+        resolved["username"] = "td_readonly"
+        resolved["password"] = "TdReadOnly123"
+        resolved["database"] = resolved.get("database") or "teradata_lab"
+        resolved["schema"] = resolved.get("schema") or "public"
         resolved["accessMode"] = resolved.get("accessMode") or "read"
 
     return resolved
@@ -810,6 +863,7 @@ async def _vault_write(path: str, data: dict) -> None:
 class ReportGenerateRequest(BaseModel):
     prompt: str = Field(min_length=1)
     dataSourceId: str
+    executionEngine: str = Field(default="spark")
 
 
 class SubscriptionUpgradeRequest(BaseModel):
@@ -1142,6 +1196,45 @@ async def org_dashboard(user: SecurityContext = Depends(get_current_user)):
     }
 
 
+@router.get("/org/logs")
+async def get_execution_logs(
+    user: SecurityContext = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    limit: int = 200,
+):
+    tenant_id = user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="tenant_id missing from token")
+
+    logs = (
+        db.query(ExecutionLog)
+        .filter(ExecutionLog.organization_id == tenant_id)
+        .order_by(ExecutionLog.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+
+    return {
+        "logs": [
+            {
+                "id": item.id,
+                "jobId": item.job_id,
+                "dataSourceId": item.data_source_id,
+                "executionEngine": item.execution_engine,
+                "queryId": item.query_id,
+                "stage": item.stage,
+                "source": item.source,
+                "status": item.status,
+                "message": item.message,
+                "errorDetails": item.error_details,
+                "context": item.context,
+                "createdAt": item.created_at.isoformat(),
+            }
+            for item in logs
+        ]
+    }
+
+
 @router.get("/org/data-sources")
 async def list_data_sources(user: SecurityContext = Depends(get_current_user)):
     tenant_id = user.tenant_id
@@ -1353,6 +1446,18 @@ def _sql_result_to_table(rows: list[tuple], columns: list[str] | None = None) ->
     return result
 
 
+def _normalize_execution_engine(value: str | None, source_type: str | None = None) -> str:
+    engine = (value or "").strip().lower()
+    if engine in {"spark", "oracle", "teradata"}:
+        return engine
+
+    source = (source_type or "").strip().lower()
+    if source in {"oracle", "teradata"}:
+        return source
+
+    return "spark"
+
+
 def _execute_report_sql(sql: str, data_source: dict) -> list[list[str]]:
     source_type = (data_source.get("type") or "").lower()
     host = data_source.get("host") or "localhost"
@@ -1410,13 +1515,363 @@ def _execute_report_sql(sql: str, data_source: dict) -> list[list[str]]:
     raise RuntimeError(f"Datasource type '{data_source.get('type')}' is not supported for query execution")
 
 
+def _spark_safe_sql(sql: str) -> str:
+    if not isinstance(sql, str):
+        return sql
+
+    cleaned = sql.strip()
+    if not cleaned:
+        return cleaned
+
+    # Spark does not understand Oracle's DUAL pseudo-table, so replace it with a tiny inline table.
+    if re.search(r"\bFROM\s+dual\b", cleaned, flags=re.IGNORECASE):
+        cleaned = re.sub(r"\bFROM\s+dual\b", "FROM (SELECT 1 AS _dual_dummy) AS dual", cleaned, flags=re.IGNORECASE)
+
+    # Oracle SQL and ANSI dialects commonly use FETCH FIRST n ROWS ONLY.
+    # Spark expects LIMIT n, which is the same semantic when used after ORDER BY.
+    cleaned = re.sub(
+        r"\bFETCH\s+FIRST\s+(\d+)\s+ROWS\s+ONLY\b",
+        r"LIMIT \1",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+
+    return cleaned
+
+
+def _extract_livy_session_id(session_payload: object) -> int | None:
+    if not isinstance(session_payload, dict):
+        return None
+
+    for key in ("id", "sessionId", "session_id"):
+        value = session_payload.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return int(value)
+        if isinstance(value, str) and value.strip():
+            try:
+                return int(value)
+            except ValueError:
+                pass
+
+    for key in ("session", "result", "data"):
+        nested = session_payload.get(key)
+        if isinstance(nested, dict):
+            nested_id = _extract_livy_session_id(nested)
+            if nested_id is not None:
+                return nested_id
+
+    return None
+
+
+async def _execute_report_sql_via_livy(
+    sql: str,
+    data_source: dict,
+    *,
+    organization_id: str | None = None,
+    user_id: str | None = None,
+    job_id: str | None = None,
+    data_source_id: str | None = None,
+    execution_engine: str = "spark",
+) -> list[list[str]]:
+    source_type = (data_source.get("type") or "").lower()
+    connection_url = (data_source.get("connectionUrl") or "").strip()
+    host = data_source.get("host") or "localhost"
+    port = data_source.get("port") or 1521
+    username = data_source.get("username") or ""
+    password = data_source.get("password") or ""
+    database = data_source.get("database") or data_source.get("schema") or "FREEPDB1"
+    sql = _spark_safe_sql(sql)
+
+    connector_type = "oracle" if source_type == "oracle" else "hive"
+    payload = {
+        "kind": "spark",
+        "connectorType": connector_type,
+        "jdbcUrl": connection_url or f"jdbc:oracle:thin:@//{host}:{port}/{database}",
+        "user": username,
+        "password": password,
+        "partitionColumn": "1",
+        "numPartitions": 1,
+        "sql": sql,
+    }
+    _record_execution_log(
+        organization_id=organization_id,
+        user_id=user_id,
+        job_id=job_id,
+        data_source_id=data_source_id,
+        execution_engine=execution_engine,
+        query_id=f"{job_id or 'spark'}-query",
+        stage="livy_request",
+        source="backend",
+        status="info",
+        message="Sending Spark SQL to Livy session",
+        context={"connectorType": connector_type, "jdbcUrl": connection_url or f"jdbc:oracle:thin:@//{host}:{port}/{database}", "sql": sql},
+    )
+
+    def _extract_rows_from_output(output: dict) -> list[list[str]]:
+        if not isinstance(output, dict):
+            return []
+
+        data_section = output.get("data") or {}
+        if isinstance(data_section, dict):
+            json_value = data_section.get("application/json")
+            if isinstance(json_value, str):
+                try:
+                    parsed = json.loads(json_value)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, list) and parsed:
+                    if isinstance(parsed[0], dict):
+                        headers = [str(k) for k in parsed[0].keys()]
+                        rows = [[str(item.get(h, "")) for h in headers] for item in parsed]
+                        return [headers, *rows]
+                    if isinstance(parsed[0], list):
+                        return [list(map(str, parsed[0]))] + [list(map(str, row)) for row in parsed[1:]]
+
+            text_value = data_section.get("text/plain")
+            if isinstance(text_value, str) and text_value.strip():
+                return _extract_rows_from_output({"data": {"text/plain": text_value}})
+
+        text_value = output.get("text") or output.get("data", {}).get("text/plain") if isinstance(output.get("data"), dict) else None
+        if isinstance(text_value, str) and text_value.strip():
+            lines = [line.strip() for line in text_value.splitlines() if line.strip()]
+            table_rows: list[list[str]] = []
+            for line in lines:
+                if "|" not in line or line.startswith("+") or line.startswith("-"):
+                    continue
+                cells = [cell.strip() for cell in line.strip("|").split("|")]
+                if not cells or all(not cell for cell in cells):
+                    continue
+                table_rows.append(cells)
+            if len(table_rows) >= 2:
+                return table_rows
+
+        return []
+
+    async with httpx.AsyncClient(timeout=60) as client:
+        response = await client.post(f"{LIVY_SERVICE_URL}/sessions", json=payload)
+        if response.status_code >= 300:
+            error_message = f"Livy session creation failed ({response.status_code}): {response.text[:500]}"
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="livy_session",
+                source="backend",
+                status="error",
+                message="Livy session creation failed",
+                error_details=error_message,
+                context={"payload": payload},
+            )
+            raise RuntimeError(error_message)
+
+        session = response.json()
+        session_id = _extract_livy_session_id(session)
+        if session_id is None:
+            error_message = f"Livy session response did not include an ID: {session}"
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="livy_session",
+                source="backend",
+                status="error",
+                message="Livy session response missing session ID",
+                error_details=error_message,
+                context={"response": session},
+            )
+            raise RuntimeError(error_message)
+
+        _record_execution_log(
+            organization_id=organization_id,
+            user_id=user_id,
+            job_id=job_id,
+            data_source_id=data_source_id,
+            execution_engine=execution_engine,
+            query_id=f"{job_id or 'spark'}-query",
+            stage="livy_session",
+            source="backend",
+            status="success",
+            message="Livy session created successfully",
+            context={"sessionId": session_id, "state": session.get("state")},
+        )
+
+        session_state = (session.get("state") or "").lower()
+        while session_state not in {"idle", "error", "dead"}:
+            await asyncio.sleep(2)
+            status_response = await client.get(f"{LIVY_SERVICE_URL}/sessions/{session_id}")
+            if status_response.status_code >= 300:
+                error_message = f"Livy session status check failed ({status_response.status_code}): {status_response.text[:500]}"
+                _record_execution_log(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    job_id=job_id,
+                    data_source_id=data_source_id,
+                    execution_engine=execution_engine,
+                    query_id=f"{job_id or 'spark'}-query",
+                    stage="livy_session",
+                    source="backend",
+                    status="error",
+                    message="Livy session status check failed",
+                    error_details=error_message,
+                    context={"sessionId": session_id},
+                )
+                raise RuntimeError(error_message)
+            session = status_response.json()
+            session_state = (session.get("state") or "").lower()
+        if session_state in {"error", "dead"}:
+            error_message = f"Livy session ended in an unusable state: {session_state}"
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="livy_session",
+                source="backend",
+                status="error",
+                message="Livy session unusable",
+                error_details=error_message,
+                context={"sessionId": session_id, "state": session_state},
+            )
+            raise RuntimeError(error_message)
+
+        statement_code = (
+            'val _spark = org.apache.spark.sql.SparkSession.builder().getOrCreate(); '
+            'val _df = _spark.sql("""' + sql.replace('"""', '\\"\\"\\"') + '"""); '
+            '_df.show(20, false); _df'
+        )
+        statement_response = await client.post(
+            f"{LIVY_SERVICE_URL}/sessions/{session_id}/statements",
+            json={"code": statement_code},
+        )
+        if statement_response.status_code >= 300:
+            error_message = f"Livy statement submission failed ({statement_response.status_code}): {statement_response.text[:500]}"
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="spark_statement",
+                source="backend",
+                status="error",
+                message="Livy statement submission failed",
+                error_details=error_message,
+                context={"sessionId": session_id, "sql": sql},
+            )
+            raise RuntimeError(error_message)
+
+        statement = statement_response.json()
+        _record_execution_log(
+            organization_id=organization_id,
+            user_id=user_id,
+            job_id=job_id,
+            data_source_id=data_source_id,
+            execution_engine=execution_engine,
+            query_id=f"{job_id or 'spark'}-query",
+            stage="spark_statement",
+            source="backend",
+            status="success",
+            message="SQL statement submitted to Spark through Livy",
+            context={"sessionId": session_id, "statementId": statement.get("id"), "state": statement.get("state")},
+        )
+
+        statement_state = (statement.get("state") or "").lower()
+        while statement_state not in {"available", "error", "cancelled", "cancelling"}:
+            await asyncio.sleep(2)
+            statement_response = await client.get(
+                f"{LIVY_SERVICE_URL}/sessions/{session_id}/statements/{statement.get('id')}"
+            )
+            if statement_response.status_code >= 300:
+                error_message = f"Livy statement polling failed ({statement_response.status_code}): {statement_response.text[:500]}"
+                _record_execution_log(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    job_id=job_id,
+                    data_source_id=data_source_id,
+                    execution_engine=execution_engine,
+                    query_id=f"{job_id or 'spark'}-query",
+                    stage="spark_statement",
+                    source="backend",
+                    status="error",
+                    message="Livy statement polling failed",
+                    error_details=error_message,
+                    context={"sessionId": session_id, "statementId": statement.get("id")},
+                )
+                raise RuntimeError(error_message)
+            statement = statement_response.json()
+            statement_state = (statement.get("state") or "").lower()
+
+        if statement_state in {"error", "cancelled", "cancelling"}:
+            output = statement.get("output") or {}
+            error_text = output.get("evalue") or output.get("traceback") or json.dumps(output)
+            error_message = f"Livy Spark execution failed: {error_text}"
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="spark_execution",
+                source="backend",
+                status="error",
+                message="Spark execution failed in Livy",
+                error_details=error_message,
+                context={"sessionId": session_id, "statementId": statement.get("id"), "output": output},
+            )
+            raise RuntimeError(error_message)
+
+        rows = _extract_rows_from_output(statement.get("output") or {})
+        if rows:
+            _record_execution_log(
+                organization_id=organization_id,
+                user_id=user_id,
+                job_id=job_id,
+                data_source_id=data_source_id,
+                execution_engine=execution_engine,
+                query_id=f"{job_id or 'spark'}-query",
+                stage="spark_execution",
+                source="backend",
+                status="success",
+                message="Spark query completed successfully",
+                context={"sessionId": session_id, "rowCount": max(0, len(rows) - 1)},
+            )
+            return rows
+
+    _record_execution_log(
+        organization_id=organization_id,
+        user_id=user_id,
+        job_id=job_id,
+        data_source_id=data_source_id,
+        execution_engine=execution_engine,
+        query_id=f"{job_id or 'spark'}-query",
+        stage="spark_execution",
+        source="backend",
+        status="success",
+        message="Spark query returned no rows but completed",
+        context={"sessionId": session_id if 'session_id' in locals() else None},
+    )
+    return [["Status", "Value"], ["Execution engine", "Spark"], ["Livy session", str(session_id)], ["Connector", connector_type], ["Result", "Executed successfully via Livy"]]
+
+
 async def _run_report_job(
     job_id: str,
     prompt: str,
     data_source: dict,
+    execution_engine: str,
     user: SecurityContext,
 ):
     data_source = await _resolve_data_source_credentials(data_source, user.tenant_id)
+    execution_engine = _normalize_execution_engine(execution_engine, data_source.get("type"))
     org = store.get_org_by_tenant(redis_client, user.tenant_id)
     org_name = org["name"] if org else user.organization_name or user.tenant_id
 
@@ -1446,9 +1901,36 @@ async def _run_report_job(
         )
         await asyncio.sleep(0.7)
 
+    _record_execution_log(
+        organization_id=user.tenant_id,
+        user_id=user.user_id,
+        job_id=job_id,
+        data_source_id=data_source.get("id"),
+        execution_engine=execution_engine,
+        query_id=job_id,
+        stage="sql_generated",
+        source="backend",
+        status="info",
+        message="SQL generated for report request",
+        context={"prompt": prompt, "dialect": "auto"},
+    )
     sql_result = await sql_agent_service.generate_sql(prompt=prompt, data_source=data_source, tenant_id=user.tenant_id)
     if not sql_result.valid:
         failure_message = "SQL validation failed: " + "; ".join(sql_result.validation_errors)
+        _record_execution_log(
+            organization_id=user.tenant_id,
+            user_id=user.user_id,
+            job_id=job_id,
+            data_source_id=data_source.get("id"),
+            execution_engine=execution_engine,
+            query_id=job_id,
+            stage="sql_validation",
+            source="backend",
+            status="error",
+            message="SQL validation failed",
+            error_details=failure_message,
+            context={"validationErrors": sql_result.validation_errors, "sql": sql_result.sql},
+        )
         store.update_job(
             redis_client,
             job_id,
@@ -1462,25 +1944,81 @@ async def _run_report_job(
         store.remove_active_job(redis_client, job_id)
         return
 
+    _record_execution_log(
+        organization_id=user.tenant_id,
+        user_id=user.user_id,
+        job_id=job_id,
+        data_source_id=data_source.get("id"),
+        execution_engine=execution_engine,
+        query_id=job_id,
+        stage="execution_start",
+        source="backend",
+        status="info",
+        message=f"Starting {execution_engine.upper()} execution",
+        context={"sql": sql_result.sql, "dialect": sql_result.dialect},
+    )
     try:
-        table_data = _execute_report_sql(sql_result.sql, data_source)
-        result_label = f"Executed query against {data_source['name']}"
+        if execution_engine == "spark":
+            table_data = await _execute_report_sql_via_livy(
+                sql_result.sql,
+                data_source,
+                organization_id=user.tenant_id,
+                user_id=user.user_id,
+                job_id=job_id,
+                data_source_id=data_source.get("id"),
+                execution_engine=execution_engine,
+            )
+            result_label = f"Executed in Spark via Livy against {data_source['name']}"
+        else:
+            table_data = _execute_report_sql(sql_result.sql, data_source)
+            result_label = f"Executed query against {data_source['name']} on {execution_engine.upper()}"
         row_count = max(0, len(table_data) - 1)
     except Exception as exc:
+        error_message = str(exc)
+        _record_execution_log(
+            organization_id=user.tenant_id,
+            user_id=user.user_id,
+            job_id=job_id,
+            data_source_id=data_source.get("id"),
+            execution_engine=execution_engine,
+            query_id=job_id,
+            stage="execution_failed",
+            source="backend",
+            status="error",
+            message="Report execution failed",
+            error_details=error_message,
+            context={"sql": sql_result.sql, "dialect": sql_result.dialect},
+        )
         table_data = [
             ["Attribute", "Value"],
             ["Data Source", data_source["name"]],
+            ["Execution engine", execution_engine.upper()],
             ["Dialect", sql_result.dialect],
             ["Estimated Cost", sql_result.estimated_cost],
             ["PII detected", "yes" if sql_result.pii_detected else "no"],
             ["Provider", sql_result.provider],
-            ["Execution error", str(exc)],
+            ["Execution error", error_message],
         ]
         result_label = f"SQL generated but execution failed: {exc}"
         row_count = 0
 
+    _record_execution_log(
+        organization_id=user.tenant_id,
+        user_id=user.user_id,
+        job_id=job_id,
+        data_source_id=data_source.get("id"),
+        execution_engine=execution_engine,
+        query_id=job_id,
+        stage="execution_complete",
+        source="backend",
+        status="success",
+        message="Report execution completed",
+        context={"rowCount": row_count, "resultLabel": result_label},
+    )
+
     content = (
         f'SQL generated for "{prompt}" on {data_source["name"]}.\n\n'
+        f'Execution engine: {execution_engine.upper()}\n'
         f'Dialect: {sql_result.dialect}\n'
         f'Cost estimate: {sql_result.estimated_cost}\n'
         f'Validation: passed\n\n'
@@ -1507,6 +2045,7 @@ async def _run_report_job(
             "tableData": table_data,
             "dataSourceName": data_source["name"],
             "prompt": prompt,
+            "executionEngine": execution_engine,
         },
     )
     store.remove_active_job(redis_client, job_id)
@@ -1565,6 +2104,7 @@ async def generate_report(
         raise HTTPException(status_code=404, detail="Data source not found")
 
     data_source = await _resolve_data_source_credentials(data_source, tenant_id)
+    execution_engine = _normalize_execution_engine(body.executionEngine, data_source.get("type"))
 
     job_id = store.create_job(
         redis_client,
@@ -1576,10 +2116,25 @@ async def generate_report(
             "dataSourceId": body.dataSourceId,
             "tenantId": tenant_id,
             "userId": user.user_id,
+            "executionEngine": execution_engine,
         },
     )
 
-    background_tasks.add_task(_run_report_job, job_id, body.prompt, data_source, user)
+    _record_execution_log(
+        organization_id=tenant_id,
+        user_id=user.user_id,
+        job_id=job_id,
+        data_source_id=data_source.get("id"),
+        execution_engine=execution_engine,
+        query_id=job_id,
+        stage="ui_request",
+        source="ui",
+        status="info",
+        message="Report request received from the UI",
+        context={"prompt": body.prompt, "dataSourceId": body.dataSourceId, "executionEngine": execution_engine},
+    )
+
+    background_tasks.add_task(_run_report_job, job_id, body.prompt, data_source, execution_engine, user)
     return {"jobId": job_id}
 
 

@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { FileSpreadsheet, FileText, Download } from "lucide-react";
+import { FileSpreadsheet, FileText, Download, Activity } from "lucide-react";
 import { downloadReportExport } from "@/lib/api";
 
 interface ExportActionsProps {
@@ -12,6 +13,7 @@ interface ExportActionsProps {
 
 export function ExportActions({ jobId, disabled }: ExportActionsProps) {
   const [exporting, setExporting] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleExport = async (format: "excel" | "pdf" | "csv") => {
     setExporting(format);
@@ -53,6 +55,14 @@ export function ExportActions({ jobId, disabled }: ExportActionsProps) {
       >
         <Download className="h-3.5 w-3.5" />
         {exporting === "csv" ? "Exporting..." : "CSV"}
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => router.push(`/logs?jobId=${encodeURIComponent(jobId)}`)}
+      >
+        <Activity className="h-3.5 w-3.5" />
+        Open log
       </Button>
     </div>
   );

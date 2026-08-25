@@ -1,0 +1,8 @@
+{
+  "kind": "spark",
+  "jars": ["/opt/irgp/jars/oracle-connector-1.0.0.jar"],
+  "conf": {
+    "spark.master": "local[*]"
+  },
+  "code": "val df = spark.read.format(\"jdbc\").option(\"url\", \"jdbc:oracle:thin:@//oracle:1521/FREEPDB1\").option(\"dbtable\", \"(SELECT 1 FROM dual) dummy\").option(\"user\", \"report_ro\").option(\"password\", \"ReportReadOnly123\").option(\"partitionColumn\", \"1\").option(\"numPartitions\", 1).option(\"lowerBound\", \"0\").option(\"upperBound\", \"99999999\").option(\"fetchsize\", \"10000\").load()"
+}

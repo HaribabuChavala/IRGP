@@ -40,6 +40,7 @@ class Organization(Base):
     report_jobs: Mapped[list["ReportJob"]] = relationship(back_populates="organization")
     reports: Mapped[list["Report"]] = relationship(back_populates="organization")
     query_history: Mapped[list["QueryHistory"]] = relationship(back_populates="organization")
+    execution_logs: Mapped[list["ExecutionLog"]] = relationship(back_populates="organization")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="organization")
     reminders: Mapped[list["Reminder"]] = relationship(back_populates="organization")
     audit_events: Mapped[list["AuditEvent"]] = relationship(back_populates="organization")
@@ -65,6 +66,7 @@ class User(Base):
     user_roles: Mapped[list["UserRole"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     report_jobs: Mapped[list["ReportJob"]] = relationship(back_populates="user")
     query_history: Mapped[list["QueryHistory"]] = relationship(back_populates="user")
+    execution_logs: Mapped[list["ExecutionLog"]] = relationship(back_populates="user")
     notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
     audit_events: Mapped[list["AuditEvent"]] = relationship(back_populates="user")
 
@@ -167,6 +169,28 @@ class QueryHistory(Base):
     organization: Mapped[Organization] = relationship(back_populates="query_history")
     user: Mapped[User | None] = relationship(back_populates="query_history")
     data_source: Mapped[DataSource | None] = relationship(back_populates="query_history")
+
+
+class ExecutionLog(Base):
+    __tablename__ = "execution_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(__import__("uuid").uuid4()))
+    organization_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("organizations.id"), nullable=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("users.id"), nullable=True)
+    job_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    data_source_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    execution_engine: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    query_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    stage: Mapped[str] = mapped_column(String(100), nullable=False, default="backend")
+    source: Mapped[str] = mapped_column(String(50), nullable=False, default="backend")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    error_details: Mapped[str | None] = mapped_column(Text, nullable=True)
+    context: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+    organization: Mapped[Organization | None] = relationship(back_populates="execution_logs")
+    user: Mapped[User | None] = relationship(back_populates="execution_logs")
 
 
 class Notification(Base):

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Send, Loader2, Activity } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
 import { ChatMessageBubble } from "@/components/chat/ChatMessageBubble";
@@ -22,12 +23,15 @@ const WELCOME_MESSAGE: ChatMessage = {
 };
 
 export function ReportChat({ dataSources }: ReportChatProps) {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME_MESSAGE]);
   const [input, setInput] = useState("");
   const [selectedSource, setSelectedSource] = useState(dataSources[0]?.id ?? "");
+  const [executionEngine, setExecutionEngine] = useState("spark");
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [lastFailureJobId, setLastFailureJobId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const activeSource = dataSources.find((ds) => ds.id === selectedSource);
@@ -59,7 +63,7 @@ export function ReportChat({ dataSources }: ReportChatProps) {
     setProgressMessage("Starting report generation...");
 
     try {
-      const { jobId } = await api.generateReport(prompt, activeSource.id);
+      const { jobId } = await api.generateReport(prompt, activeSource.id, executionEngine);
       setActiveJobId(jobId);
 
       await streamReportJob(jobId, (event) => {
@@ -84,6 +88,7 @@ export function ReportChat({ dataSources }: ReportChatProps) {
         }
 
         if (event.status === "failed") {
+          setLastFailureJobId(jobId);
           setMessages((prev) => [
             ...prev,
             {
@@ -131,6 +136,21 @@ export function ReportChat({ dataSources }: ReportChatProps) {
             </option>
           ))}
         </Select>
+
+        <label htmlFor="execution-engine" className="text-sm font-medium text-slate-700">
+          Engine
+        </label>
+        <Select
+          id="execution-engine"
+          value={executionEngine}
+          onChange={(e) => setExecutionEngine(e.target.value)}
+          className="max-w-[10rem]"
+        >
+          <option value="spark">Spark</option>
+          <option value="oracle">Oracle</option>
+          <option value="teradata">Teradata</option>
+        </Select>
+
         {activeSource && (
           <span className="text-xs text-slate-400">Status: {activeSource.status}</span>
         )}
@@ -151,7 +171,19 @@ export function ReportChat({ dataSources }: ReportChatProps) {
 
       {lastAssistant && activeJobId && (
         <div className="border-t border-slate-100 px-5 py-3">
-          <ExportActions jobId={activeJobId} />
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportActions jobId={activeJobId} />
+            {lastFailureJobId && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/logs?jobId=${encodeURIComponent(lastFailureJobId)}`)}
+              >
+                <Activity className="h-3.5 w-3.5" />
+                View latest failed job log
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
