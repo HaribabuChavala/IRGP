@@ -40,14 +40,19 @@ class SecurityContext:
         self.roles = payload.get("realm_access", {}).get("roles", [])
 
         fallback = self._resolve_identity_context()
-        self.tenant_id = payload.get("tenant_id") or fallback.get("tenant_id") or ""
+        self.tenant_id = (
+            payload.get("tenant_id")
+            or payload.get("organization_id")
+            or payload.get("org_id")
+            or fallback.get("tenant_id")
+            or ""
+        )
         self.region = payload.get("region") or fallback.get("region") or ""
         self.organization_name = payload.get("organization_name") or fallback.get("organization_name") or ""
 
     def _resolve_identity_context(self) -> dict:
         identity = {"tenant_id": "", "region": "", "organization_name": ""}
-        lookup = self.email or self.username
-        if not lookup:
+        if not any([self.user_id, self.email, self.username]):
             return identity
 
         try:
@@ -56,12 +61,18 @@ class SecurityContext:
 
             with SessionLocal() as db:
                 user_record = None
-                if self.email:
-                    user_record = db.query(User).filter(User.email == self.email).first()
+                if self.user_id:
+                    user_record = (
+                        db.query(User)
+                        .filter((User.keycloak_user_id == self.user_id) | (User.id == self.user_id))
+                        .first()
+                    )
+                if user_record is None and self.email:
+                    user_record = db.query(User).filter(User.email.ilike(self.email)).first()
                 if user_record is None and self.username:
-                    user_record = db.query(User).filter(User.username == self.username).first()
+                    user_record = db.query(User).filter(User.username.ilike(self.username)).first()
                 if user_record is not None:
-                    identity["tenant_id"] = user_record.organization_id or user_record.tenant_id or ""
+                    identity["tenant_id"] = user_record.tenant_id or user_record.organization_id or ""
                     identity["region"] = user_record.region or ""
                     identity["organization_name"] = user_record.organization_name or ""
         except Exception:
@@ -144,6 +155,31 @@ def log_denied_access(user: SecurityContext, resource: dict, action: str) -> Non
     }
     redis_client.lpush(AUDIT_LOG_KEY, json.dumps(entry))
     redis_client.ltrim(AUDIT_LOG_KEY, 0, 999)
+
+    try:
+        from database import SessionLocal
+        from models import AuditEvent
+
+        with SessionLocal() as db:
+            db.add(
+                AuditEvent(
+                    organization_id=user.tenant_id or None,
+                    user_id=None,
+                    username=user.username,
+                    user_roles={"roles": user.roles},
+                    tenant_id=user.tenant_id or None,
+                    region=user.region or None,
+                    resource_type=resource.get("type") if isinstance(resource, dict) else None,
+                    resource_id=resource.get("id") if isinstance(resource, dict) else None,
+                    resource=resource if isinstance(resource, dict) else {},
+                    action=action,
+                    decision="DENIED",
+                    reason="Access denied by policy evaluation",
+                )
+            )
+            db.commit()
+    except Exception:
+        pass
 
 
 async def get_vault_secret(path: str | None = None) -> dict:

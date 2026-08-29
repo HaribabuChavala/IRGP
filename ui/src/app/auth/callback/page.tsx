@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { clearAuthReturnTarget, getAuthReturnTarget } from "@/lib/keycloak";
 
 export default function AuthCallbackPage() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -17,11 +18,9 @@ export default function AuthCallbackPage() {
       return;
     }
 
-    if (user.role === "PLATFORM_ADMIN") {
-      router.replace("/admin/dashboard");
-    } else {
-      router.replace("/dashboard");
-    }
+    const target = getAuthReturnTarget(user.role === "PLATFORM_ADMIN" ? "/admin/dashboard" : "/dashboard");
+    clearAuthReturnTarget();
+    router.replace(target);
   }, [isAuthenticated, isLoading, user, router]);
 
   return (

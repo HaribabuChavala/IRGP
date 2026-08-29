@@ -1,7 +1,28 @@
 import Keycloak from "keycloak-js";
 import { env } from "@/config/env";
 
+const RETURN_TO_KEY = "report_platform_return_to";
+
 let keycloakInstance: Keycloak | null = null;
+
+export function setAuthReturnTarget(path: string = "/dashboard"): void {
+  if (typeof window === "undefined") return;
+
+  const safePath = path.startsWith("/") ? path : "/dashboard";
+  sessionStorage.setItem(RETURN_TO_KEY, safePath);
+}
+
+export function getAuthReturnTarget(defaultPath: string = "/dashboard"): string {
+  if (typeof window === "undefined") return defaultPath;
+
+  const stored = sessionStorage.getItem(RETURN_TO_KEY) || defaultPath;
+  return stored.startsWith("/") ? stored : defaultPath;
+}
+
+export function clearAuthReturnTarget(): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.removeItem(RETURN_TO_KEY);
+}
 
 export function getKeycloak(): Keycloak | null {
   if (typeof window === "undefined") return null;

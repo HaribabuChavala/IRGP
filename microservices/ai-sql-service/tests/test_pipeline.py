@@ -1,6 +1,6 @@
 import asyncio
 
-from app.config import settings
+from app.config import Settings, settings
 from app.services.pipeline import SqlAgentPipeline
 
 
@@ -95,6 +95,22 @@ def test_require_explicit_tenant_allowlist() -> None:
 
     assert valid is False
     assert any("no explicit table allow-list" in item for item in errors)
+
+
+def test_lab_tenant_aliases_are_allowed_by_default() -> None:
+    settings.require_tenant_allowlist = True
+    settings.tenant_table_allowlist = Settings._load_tenant_allowlist("")
+    pipeline = SqlAgentPipeline()
+    schema = {"allow_list": {"report_platform.sales_orders"}}
+
+    valid, errors = pipeline._validate_sql(
+        "SELECT order_id FROM report_platform.sales_orders LIMIT 10",
+        schema,
+        "org-acme",
+    )
+
+    assert valid is True
+    assert errors == []
 
 
 def test_tenant_wildcard_allowlist_is_supported() -> None:

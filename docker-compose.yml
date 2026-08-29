@@ -64,6 +64,24 @@ services:
     networks:
       - access-net
 
+  keycloak-sync:
+    image: python:3.12-slim
+    container_name: access-keycloak-sync
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_started
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_REALM: report-platform
+      KEYCLOAK_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USERNAME:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-change-me-admin}
+    volumes:
+      - ./keycloak:/app:ro
+    command: sh -c "pip install --no-cache-dir requests >/dev/null 2>&1 && python /app/sync_user_claims.py"
+    networks:
+      - access-net
+
 
   # =========================================================
   # POSTGRES
@@ -335,7 +353,7 @@ services:
       DENY_STAR_SELECT: ${DENY_STAR_SELECT:-true}
       ENFORCE_ROW_LIMIT: ${ENFORCE_ROW_LIMIT:-true}
       REQUIRE_TENANT_ALLOWLIST: ${REQUIRE_TENANT_ALLOWLIST:-true}
-      TENANT_TABLE_ALLOWLIST_JSON: ${TENANT_TABLE_ALLOWLIST_JSON:-}
+      TENANT_TABLE_ALLOWLIST_JSON: ${TENANT_TABLE_ALLOWLIST_JSON:-{"org-acme":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"],"org-spartexai":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"],"org-hsbc":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"],"org-startup":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"],"tenant-acme":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"],"tenant-demo":["testing.sales_orders","testing.sales_order_items","testing.customers","testing.products","report_platform.sales_orders","report_platform.sales_order_items","report_platform.customers","report_platform.products"]}}
 
     expose:
       - "8000"

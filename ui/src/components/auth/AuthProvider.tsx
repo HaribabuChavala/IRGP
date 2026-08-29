@@ -11,7 +11,7 @@ import {
 } from "react";
 import type Keycloak from "keycloak-js";
 import type { AuthUser, UserRole } from "@/lib/types";
-import { getAuthRedirectUri, getKeycloak } from "@/lib/keycloak";
+import { getAuthRedirectUri, getKeycloak, setAuthReturnTarget } from "@/lib/keycloak";
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -91,6 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(() => {
+    const currentPath = typeof window !== "undefined" ? `${window.location.pathname}${window.location.search}` : "/dashboard";
+    const target = currentPath === "/login" || currentPath === "/auth/callback" ? "/dashboard" : currentPath;
+    setAuthReturnTarget(target);
+
     const kc = getKeycloak();
     kc?.login({ redirectUri: getAuthRedirectUri() });
   }, []);

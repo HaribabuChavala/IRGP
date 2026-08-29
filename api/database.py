@@ -1,7 +1,7 @@
 import os
 from typing import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 import store
@@ -29,11 +29,35 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _legacy_schema_needs_reset() -> bool:
+    try:
+        inspector = inspect(engine)
+        if not inspector.has_table("organizations"):
+            return False
+        organization_columns = {column["name"] for column in inspector.get_columns("organizations")}
+        return "id" not in organization_columns or "name" not in organization_columns
+    except Exception:
+        return False
+
+
+def _reset_app_schema(models_base: DeclarativeBase) -> None:
+    inspector = inspect(engine)
+    cascade_clause = " CASCADE" if engine.dialect.name != "sqlite" else ""
+    for table in reversed(models_base.metadata.sorted_tables):
+        if inspector.has_table(table.name):
+            with engine.begin() as conn:
+                conn.execute(text(f'DROP TABLE IF EXISTS "{table.name}"{cascade_clause}'))
+    models_base.metadata.create_all(bind=engine)
+
+
 def init_db() -> None:
     # Import here to avoid circular dependencies and keep the model layer lazy.
     from models import Base as ModelsBase, Organization, Role, User, UserRole
 
-    ModelsBase.metadata.create_all(bind=engine)
+    if _legacy_schema_needs_reset():
+        _reset_app_schema(ModelsBase)
+    else:
+        ModelsBase.metadata.create_all(bind=engine)
 
     with SessionLocal() as db:
         if db.query(Organization).count() == 0:
@@ -68,6 +92,11 @@ def init_db() -> None:
             db.commit()
 
     with SessionLocal() as db:
+        for role_name in ["PLATFORM_ADMIN", "REPORT_ADMIN", "REPORT_USER"]:
+            if db.query(Role).filter(Role.name == role_name).first() is None:
+                db.add(Role(name=role_name, description=f"Built-in {role_name.lower()} role"))
+        db.commit()
+
         role_lookup = {role.name: role.id for role in db.query(Role).all()}
         default_users = [
             {

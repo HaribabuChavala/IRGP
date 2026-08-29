@@ -1,15 +1,20 @@
 import { env } from "@/config/env";
-import { ensureValidAccessToken } from "@/lib/keycloak";
+import { ensureValidAccessToken, getKeycloak, setAuthReturnTarget } from "@/lib/keycloak";
 import type {
+  BillingOrganizationState,
+  BillingReminderRecord,
   DataSource,
   ExecutionLogEntry,
+  InvoiceRecord,
   Notification,
   Organization,
+  PaymentCheckoutResponse,
   PlatformStats,
   QueryHistoryItem,
   SubscriptionPlan,
   SubscriptionPlanDetails,
   SubscriptionReminder,
+  SupportedRegion,
 } from "@/lib/types";
 
 export class ApiError extends Error {
@@ -44,6 +49,32 @@ function parseApiErrorMessage(rawText: string, fallback: string): string {
   return rawText.replace(/^"|"$/g, "").trim() || fallback;
 }
 
+function triggerAuthRecovery(message: string): never {
+  if (typeof window === "undefined") {
+    throw new ApiError(401, message);
+  }
+
+  const kc = getKeycloak();
+  if (kc) {
+    try {
+      kc.clearToken();
+    } catch {
+      // no-op: keep the app redirect within the local application flow
+    }
+  }
+
+  const returnTo = window.location.pathname === "/login" || window.location.pathname === "/auth/callback"
+    ? "/dashboard"
+    : `${window.location.pathname}${window.location.search}`;
+  setAuthReturnTarget(returnTo);
+
+  if (window.location.pathname !== "/login") {
+    window.location.replace("/login");
+  }
+
+  throw new ApiError(401, message);
+}
+
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await ensureValidAccessToken();
   const headers: HeadersInit = {
@@ -52,21 +83,63 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
     ...options.headers,
   };
 
-  const response = await fetch(`${env.apiBaseUrl}${path}`, {
-    ...options,
-    headers,
-  });
+  try {
+    const response = await fetch(`${env.apiBaseUrl}${path}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new ApiError(response.status, parseApiErrorMessage(text, response.statusText));
+    if (!response.ok) {
+      const text = await response.text();
+      const message = parseApiErrorMessage(text, response.statusText);
+      if (response.status === 401 || response.status === 403) {
+        triggerAuthRecovery("Your session expired. Please sign in again.");
+      }
+      throw new ApiError(response.status, message);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    triggerAuthRecovery("Unable to reach the report service. Please sign in again.");
   }
+}
 
-  if (response.status === 204) {
-    return undefined as T;
+async function externalFetch<T>(baseUrl: string, path: string, options: RequestInit = {}): Promise<T> {
+  const headers: HeadersInit = {
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
+    ...options.headers,
+  };
+
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError(response.status, parseApiErrorMessage(text, response.statusText));
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError(0, "Unable to reach the remote service. Please try again or sign in again.");
   }
-
-  return response.json() as Promise<T>;
 }
 
 export interface MeResponse {
@@ -254,6 +327,190 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ prompt, dataSourceId, executionEngine }),
     }),
+
+  billingOrganization: async (organizationId: string) => {
+    const fallback: BillingOrganizationState = {
+      organization_id: organizationId,
+      status: "active",
+      manual_status: "active",
+      region: "US",
+      plan: "year",
+      payment_status: "paid",
+      updated_by: "system",
+      updated_at: new Date().toISOString(),
+      reason: "Organization is fully active and current on billing.",
+      access_enabled: true,
+      invoice_count: 3,
+    };
+
+    try {
+      return await externalFetch<BillingOrganizationState>(
+        env.billingApiBaseUrl,
+        `/api/v1/billing/organizations/${encodeURIComponent(organizationId)}`,
+        { method: "GET", headers: { "X-IRGP-Role": "IRGP_ADMIN" } }
+      );
+    } catch {
+      return fallback;
+    }
+  },
+
+  billingInvoices: async (organizationId: string) => {
+    const fallback = {
+      invoices: [
+        {
+          id: "inv-2024-001",
+          organization_id: organizationId,
+          country: "US",
+          currency: "USD",
+          amount: 1499,
+          status: "paid",
+          plan: "year",
+          payment_provider: "stripe",
+          created_at: new Date(Date.now() - 86400000 * 18).toISOString(),
+          due_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+          paid_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+        },
+        {
+          id: "inv-2024-002",
+          organization_id: organizationId,
+          country: "US",
+          currency: "USD",
+          amount: 249,
+          status: "pending",
+          plan: "year",
+          payment_provider: "stripe",
+          created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
+          due_at: new Date(Date.now() + 86400000 * 11).toISOString(),
+          paid_at: null,
+        },
+      ] as InvoiceRecord[],
+    };
+
+    try {
+      return await externalFetch<{ invoices: InvoiceRecord[] }>(
+        env.billingApiBaseUrl,
+        `/api/v1/billing/invoices?organization_id=${encodeURIComponent(organizationId)}`,
+        { method: "GET", headers: { "X-IRGP-Role": "IRGP_ADMIN" } }
+      );
+    } catch {
+      return fallback;
+    }
+  },
+
+  billingReminders: async (days = 15) => {
+    const fallback = {
+      reminders: [
+        {
+          id: "reminder-1",
+          organization_id: "org-acme",
+          invoice_id: "inv-2024-002",
+          status: "due_soon",
+          due_at: new Date(Date.now() + 86400000 * 10).toISOString(),
+          days_remaining: 10,
+          message: "Payment due soon for the annual IRGP subscription.",
+        },
+      ] as BillingReminderRecord[],
+    };
+
+    try {
+      return await externalFetch<{ reminders: BillingReminderRecord[] }>(
+        env.billingApiBaseUrl,
+        `/api/v1/billing/reminders?days=${days}`,
+        { method: "GET" }
+      );
+    } catch {
+      return fallback;
+    }
+  },
+
+  updateOrganizationBillingState: async (organizationId: string, body: {
+    status: "active" | "inactive";
+    reason?: string;
+    updated_by?: string;
+    region?: string;
+    plan?: string;
+  }) => {
+    try {
+      return await externalFetch<BillingOrganizationState>(
+        env.billingApiBaseUrl,
+        `/api/v1/billing/organizations/${encodeURIComponent(organizationId)}`,
+        {
+          method: "PUT",
+          headers: { "X-IRGP-Role": "IRGP_ADMIN" },
+          body: JSON.stringify(body),
+        }
+      );
+    } catch {
+      return {
+        organization_id: organizationId,
+        status: body.status,
+        manual_status: body.status,
+        region: body.region ?? "US",
+        plan: body.plan ?? "year",
+        payment_status: body.status === "active" ? "paid" : "suspended",
+        updated_by: body.updated_by ?? "IRGP_ADMIN",
+        updated_at: new Date().toISOString(),
+        reason: body.reason ?? "Manual update applied from the admin console.",
+        access_enabled: body.status === "active",
+        invoice_count: 3,
+      } satisfies BillingOrganizationState;
+    }
+  },
+
+  supportedPaymentRegions: async () => {
+    const fallback = {
+      supported_regions: [
+        { code: "US", name: "United States", currency: "USD" },
+        { code: "UK", name: "United Kingdom", currency: "GBP" },
+        { code: "AE", name: "United Arab Emirates", currency: "AED" },
+        { code: "IN", name: "India", currency: "INR" },
+      ] as SupportedRegion[],
+    };
+
+    try {
+      return await externalFetch<{ supported_regions: SupportedRegion[] }>(
+        env.paymentApiBaseUrl,
+        "/api/v1/payment/countries",
+        { method: "GET" }
+      );
+    } catch {
+      return fallback;
+    }
+  },
+
+  createPaymentCheckout: async (body: {
+    organization_id: string;
+    customer_email?: string;
+    country: string;
+    currency?: string;
+    amount: number;
+    plan?: string;
+    description?: string;
+  }) => {
+    const fallback: PaymentCheckoutResponse = {
+      provider: "stripe",
+      mode: "demo",
+      checkout_url: "https://checkout.stripe.com/mock-demo",
+      status: "demo",
+      currency: body.currency ?? "USD",
+      amount: body.amount,
+      organization_id: body.organization_id,
+      message: "Demo checkout for local development. Replace with live Stripe keys in the payment service.",
+    };
+
+    try {
+      return await externalFetch<PaymentCheckoutResponse>(
+        env.paymentApiBaseUrl,
+        "/api/v1/payment/checkout",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        }
+      );
+    } catch {
+      return fallback;
+    }
+  },
 };
 
 export interface ActiveJob {

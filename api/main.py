@@ -19,24 +19,9 @@ from deps import (
     log_denied_access,
     redis_client,
 )
+from database import SessionLocal
+from models import AuditEvent, Report
 from routes import router as app_router
-
-REPORTS = {
-    "123": {
-        "report_id": "123",
-        "title": "Q4 Revenue Report",
-        "tenant_id": "tenant-acme",
-        "region": "us-east",
-        "content": "Revenue increased by 15%...",
-    },
-    "456": {
-        "report_id": "456",
-        "title": "Q4 Revenue Report - EU",
-        "tenant_id": "tenant-other",
-        "region": "eu-west",
-        "content": "EU revenue data...",
-    },
-}
 
 
 @asynccontextmanager
@@ -137,34 +122,70 @@ async def policy_check(request: PolicyCheckRequest, user: SecurityContext = Depe
 
 @app.get("/api/v1/reports/{report_id}", response_model=ReportResponse)
 async def get_report(report_id: str, user: SecurityContext = Depends(get_current_user)):
-    report = REPORTS.get(report_id)
+    with SessionLocal() as db:
+        report = db.query(Report).filter(Report.id == report_id).first()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    resource = {"type": "report", "id": report_id, "tenant_id": report["tenant_id"], "region": report["region"]}
+
+    resource = {"type": "report", "id": report.id, "tenant_id": report.organization_id, "region": report.region or "unknown"}
     allowed = await check_policy(user=user, resource=resource, action="read")
     if not allowed:
         log_denied_access(user=user, resource=resource, action="read")
         raise HTTPException(status_code=403, detail="Access denied")
-    return ReportResponse(**report)
+
+    return ReportResponse(
+        report_id=str(report.id),
+        title=report.title,
+        tenant_id=report.organization_id,
+        region=report.region or "unknown",
+        content=report.content,
+    )
 
 
 @app.delete("/api/v1/reports/{report_id}")
 async def delete_report(report_id: str, user: SecurityContext = Depends(get_current_user)):
-    report = REPORTS.get(report_id)
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
-    resource = {"type": "report", "id": report_id, "tenant_id": report["tenant_id"], "region": report["region"]}
-    allowed = await check_policy(user=user, resource=resource, action="admin")
-    if not allowed:
-        log_denied_access(user=user, resource=resource, action="admin")
-        raise HTTPException(status_code=403, detail="Access denied")
-    del REPORTS[report_id]
-    return {"deleted": True, "report_id": report_id, "deleted_by": user.username}
+    with SessionLocal() as db:
+        report = db.query(Report).filter(Report.id == report_id).first()
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        resource = {"type": "report", "id": report.id, "tenant_id": report.organization_id, "region": report.region or "unknown"}
+        allowed = await check_policy(user=user, resource=resource, action="admin")
+        if not allowed:
+            log_denied_access(user=user, resource=resource, action="admin")
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        db.delete(report)
+        db.commit()
+        return {"deleted": True, "report_id": report_id, "deleted_by": user.username}
 
 
 @app.get("/api/v1/audit/denied")
 async def get_denied_audit_log(user: SecurityContext = Depends(get_current_user)):
     if "REPORT_ADMIN" not in user.roles and "PLATFORM_ADMIN" not in user.roles:
         raise HTTPException(status_code=403, detail="Admin access required")
-    entries = redis_client.lrange(AUDIT_LOG_KEY, 0, -1)
-    return {"total": len(entries), "entries": [json.loads(e) for e in entries]}
+
+    redis_entries = [json.loads(e) for e in redis_client.lrange(AUDIT_LOG_KEY, 0, -1)]
+    with SessionLocal() as db:
+        db_entries = [
+            {
+                "timestamp": event.created_at.timestamp(),
+                "user_id": event.user_id,
+                "username": event.username,
+                "roles": event.user_roles or {"roles": []},
+                "tenant_id": event.tenant_id,
+                "region": event.region,
+                "resource": event.resource or {},
+                "action": event.action,
+                "decision": event.decision,
+            }
+            for event in db.query(AuditEvent)
+            .filter(AuditEvent.decision == "DENIED")
+            .order_by(AuditEvent.created_at.desc())
+            .limit(100)
+            .all()
+        ]
+
+    merged = db_entries + redis_entries
+    merged.sort(key=lambda item: float(item.get("timestamp", 0)), reverse=True)
+    return {"total": len(merged), "entries": merged[:100]}

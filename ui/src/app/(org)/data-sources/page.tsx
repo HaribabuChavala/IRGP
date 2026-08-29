@@ -23,8 +23,9 @@ export default function DataSourcesPage() {
   const [formError, setFormError] = useState<string>("");
   const [warnings, setWarnings] = useState<string[]>([]);
   const [submitted, setSubmitted] = useState(false);
-  const [touchedFields, setTouchedFields] = useState<Partial<Record<keyof typeof form, boolean>>>({});
-  const blankForm = {
+  const [touchedFields, setTouchedFields] = useState<Partial<Record<string, boolean>>>({});
+
+  const makeBlankForm = () => ({
     name: "",
     type: "oracle" as DataSourceType,
     connectionUrl: "",
@@ -37,11 +38,18 @@ export default function DataSourcesPage() {
     password: "",
     accessMode: "read" as "read" | "write",
     readOnlyConfirmed: false,
+  });
+
+  const [form, setForm] = useState(makeBlankForm);
+
+  const resetTestState = () => {
+    setTestConnectionId(null);
+    setTestMessage("");
+    setWarnings([]);
   };
-  const [form, setForm] = useState(blankForm);
 
   const resetFormToBlank = () => {
-    setForm(blankForm);
+    setForm(makeBlankForm());
     setTouchedFields({});
     setSubmitted(false);
     resetTestState();
@@ -136,18 +144,8 @@ export default function DataSourcesPage() {
   };
 
   useEffect(() => {
-    resetFormToBlank();
-  }, []);
-
-  useEffect(() => {
     loadSources();
   }, []);
-
-  const resetTestState = () => {
-    setTestConnectionId(null);
-    setTestMessage("");
-    setWarnings([]);
-  };
 
   const resetValidationState = () => {
     setSubmitted(false);
@@ -477,13 +475,14 @@ export default function DataSourcesPage() {
                     <Label htmlFor="password">Password</Label>
                     <Input
                       id="password"
-                      type="text"
+                      type="password"
                       required
                       value={form.password}
                       onChange={(e) => setField("password", e.target.value)}
                       onBlur={() => markTouched("password")}
                       className={fieldClassName("password")}
                       placeholder="••••••••"
+                      autoComplete="new-password"
                     />
                     {showFieldError("password") && <p className="mt-1 text-xs text-rose-600">{fieldErrors.password}</p>}
                   </div>

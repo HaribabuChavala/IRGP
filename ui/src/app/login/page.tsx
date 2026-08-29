@@ -7,6 +7,7 @@ import { FileBarChart2, Shield, User, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { clearAuthReturnTarget, getAuthReturnTarget } from "@/lib/keycloak";
 
 const DEMO_ACCOUNTS = [
   {
@@ -35,7 +36,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isLoading || !isAuthenticated || !user) return;
-    router.replace(user.role === "PLATFORM_ADMIN" ? "/admin/dashboard" : "/dashboard");
+
+    const target = getAuthReturnTarget(user.role === "PLATFORM_ADMIN" ? "/admin/dashboard" : "/dashboard");
+    clearAuthReturnTarget();
+    router.replace(target);
   }, [isAuthenticated, isLoading, user, router]);
 
   return (

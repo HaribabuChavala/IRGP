@@ -37,7 +37,7 @@ except Exception:  # pragma: no cover - optional dependency at runtime
 import store
 from ai_sql_agent import sql_agent_service
 from database import SessionLocal, get_db
-from models import DataSource, ExecutionLog, Organization, QueryHistory, ReportJob, User
+from models import AuditEvent, DataSource, ExecutionLog, Notification, Organization, QueryHistory, Report, ReportJob, Reminder, Role, User, UserRole
 from deps import (
     SecurityContext,
     get_current_user,
@@ -161,6 +161,29 @@ def map_role_to_keycloak_role(role: str) -> str:
         "PLATFORM_ADMIN": "PLATFORM_ADMIN",
     }
     return mapping.get(role, "REPORT_USER")
+
+
+def map_db_role_name(role: str) -> str:
+    mapping = {
+        "ORG_ADMIN": "REPORT_ADMIN",
+        "ORG_USER": "REPORT_USER",
+        "REPORT_ADMIN": "REPORT_ADMIN",
+        "REPORT_USER": "REPORT_USER",
+        "PLATFORM_ADMIN": "PLATFORM_ADMIN",
+    }
+    return mapping.get((role or "").upper(), "REPORT_USER")
+
+
+def ensure_user_role(db: Session, user_record: User, role_name: str) -> None:
+    db_role_name = map_db_role_name(role_name)
+    role = db.query(Role).filter(Role.name == db_role_name).first()
+    if role is None:
+        role = Role(name=db_role_name, description=f"Built-in {db_role_name.lower()} role")
+        db.add(role)
+        db.flush()
+
+    if not db.query(UserRole).filter_by(user_id=user_record.id, role_id=role.id).first():
+        db.add(UserRole(user_id=user_record.id, role_id=role.id))
 
 
 async def get_keycloak_admin_token() -> str:
@@ -454,6 +477,45 @@ def _source_fingerprint(payload: dict) -> str:
     }
     raw = json.dumps(sensitive, sort_keys=True)
     return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _ensure_data_source_exists(data_source: dict, tenant_id: str) -> dict:
+    if not data_source or not tenant_id or not data_source.get("id"):
+        return data_source
+
+    try:
+        with SessionLocal() as db:
+            row = db.query(DataSource).filter(DataSource.id == data_source["id"]).first()
+            if row is None:
+                row = DataSource(
+                    id=data_source["id"],
+                    organization_id=tenant_id,
+                    name=data_source.get("name") or "Unnamed data source",
+                    type=data_source.get("type") or "unknown",
+                    host=data_source.get("host"),
+                    port=data_source.get("port"),
+                    database_name=data_source.get("database") or data_source.get("databaseName"),
+                    file_path=data_source.get("filePath"),
+                    status=data_source.get("status") or "connected",
+                    query_count=int(data_source.get("queryCount") or 0),
+                )
+                db.add(row)
+            else:
+                row.organization_id = tenant_id
+                row.name = data_source.get("name") or row.name or "Unnamed data source"
+                row.type = data_source.get("type") or row.type or "unknown"
+                row.host = data_source.get("host") or row.host
+                row.port = data_source.get("port") or row.port
+                row.database_name = data_source.get("database") or data_source.get("databaseName") or row.database_name
+                row.file_path = data_source.get("filePath") if data_source.get("filePath") is not None else row.file_path
+                row.status = data_source.get("status") or row.status or "connected"
+                row.query_count = int(data_source.get("queryCount") or row.query_count or 0)
+
+            db.commit()
+    except Exception:
+        pass
+
+    return data_source
 
 
 async def _resolve_data_source_credentials(data_source: dict, tenant_id: str) -> dict:
@@ -1116,11 +1178,14 @@ async def onboard_organization(
             username=invite.username,
             full_name=invite.full_name or invite.username,
             organization_id=str(org.id),
+            tenant_id=str(org.id),
             organization_name=org.name,
             region=body.region,
             status="invited",
         )
         db.add(db_user)
+        db.flush()
+        ensure_user_role(db, db_user, invite.role)
 
     db.commit()
 
@@ -1186,12 +1251,15 @@ async def register_user(
         username=username,
         full_name=body.name,
         organization_id=body.organizationId,
+        tenant_id=body.organizationId,
         organization_name=org["name"],
         region=org.get("region", "unknown"),
         status="invited",
         keycloak_user_id=keycloak_user_id,
     )
     db.add(db_user)
+    db.flush()
+    ensure_user_role(db, db_user, body.role)
     db.commit()
     db.refresh(db_user)
 
@@ -1222,7 +1290,10 @@ async def org_dashboard(user: SecurityContext = Depends(get_current_user)):
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id missing from token")
 
-    sources = store.get_data_sources(redis_client, tenant_id)
+    sources = [
+        _ensure_data_source_exists(source, tenant_id)
+        for source in store.get_data_sources(redis_client, tenant_id)
+    ]
     history = store.get_query_history(redis_client, tenant_id)
     total_queries = sum(s.get("queryCount", 0) for s in sources)
 
@@ -1288,7 +1359,11 @@ async def list_data_sources(user: SecurityContext = Depends(get_current_user)):
     tenant_id = user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id missing from token")
-    return {"dataSources": store.get_data_sources(redis_client, tenant_id)}
+    sources = [
+        _ensure_data_source_exists(source, tenant_id)
+        for source in store.get_data_sources(redis_client, tenant_id)
+    ]
+    return {"dataSources": sources}
 
 
 @router.post("/org/data-sources/test-connection")
@@ -1403,6 +1478,7 @@ async def create_data_source(
     }
     sources.append(source)
     store.save_data_sources(redis_client, tenant_id, sources)
+    _ensure_data_source_exists(source, tenant_id)
     redis_client.delete(test_key)
 
     orgs = store.get_organizations(redis_client)
@@ -1420,7 +1496,27 @@ async def list_notifications(user: SecurityContext = Depends(get_current_user)):
     tenant_id = user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id missing from token")
-    return {"notifications": store.get_notifications(redis_client, tenant_id)}
+
+    redis_notifications = store.get_notifications(redis_client, tenant_id)
+    with SessionLocal() as db:
+        db_notifications = [
+            {
+                "id": row.id,
+                "title": row.title,
+                "message": row.message,
+                "type": row.type,
+                "read": row.is_read,
+                "createdAt": row.created_at.isoformat(),
+            }
+            for row in db.query(Notification)
+            .filter(Notification.organization_id == tenant_id)
+            .order_by(Notification.created_at.desc())
+            .limit(50)
+            .all()
+        ]
+    if db_notifications:
+        return {"notifications": db_notifications}
+    return {"notifications": redis_notifications}
 
 
 @router.patch("/org/notifications/{notification_id}/read")
@@ -1435,6 +1531,12 @@ async def mark_notification_read(
             item["read"] = True
             break
     store.save_notifications(redis_client, tenant_id, items)
+
+    with SessionLocal() as db:
+        record = db.query(Notification).filter(Notification.id == notification_id).first()
+        if record is not None:
+            record.is_read = True
+            db.commit()
     return {"updated": True}
 
 
@@ -1443,7 +1545,29 @@ async def list_reminders(user: SecurityContext = Depends(get_current_user)):
     tenant_id = user.tenant_id
     if not tenant_id:
         raise HTTPException(status_code=400, detail="tenant_id missing from token")
-    return {"reminders": store.get_subscription_reminders(redis_client, tenant_id)}
+    redis_reminders = store.get_subscription_reminders(redis_client, tenant_id)
+
+    with SessionLocal() as db:
+        db_reminders = [
+            {
+                "id": row.id,
+                "title": row.title,
+                "message": row.message,
+                "type": row.reminder_type,
+                "dueAt": row.due_at.isoformat() if row.due_at else None,
+                "read": row.is_sent,
+                "createdAt": row.created_at.isoformat(),
+            }
+            for row in db.query(Reminder)
+            .filter(Reminder.organization_id == tenant_id)
+            .order_by(Reminder.created_at.desc())
+            .limit(50)
+            .all()
+        ]
+
+    if db_reminders:
+        return {"reminders": db_reminders}
+    return {"reminders": redis_reminders}
 
 
 @router.get("/org/subscriptions/plans")
@@ -2102,6 +2226,40 @@ async def _run_report_job(
             "executionEngine": execution_engine,
         },
     )
+
+    db_user_id = _resolve_db_user_id(user.user_id, email=user.email, username=user.username)
+    with SessionLocal() as db:
+        job_record = db.query(ReportJob).filter(ReportJob.id == job_id).first()
+        if job_record is not None:
+            job_record.status = "completed"
+            job_record.progress = 100
+            job_record.result_summary = {
+                "sqlQuery": sql_result.sql,
+                "sqlDialect": sql_result.dialect,
+                "provider": sql_result.provider,
+                "rowCount": row_count,
+                "executionEngine": execution_engine,
+                "prompt": prompt,
+            }
+            db.add(job_record)
+
+        report_record = db.query(Report).filter(Report.job_id == job_id).first()
+        if report_record is None:
+            report_record = Report(
+                organization_id=user.tenant_id,
+                job_id=job_id,
+                title=f"Report: {prompt[:120]}",
+                tenant_id=user.tenant_id,
+                region=user.region or "unknown",
+                content=content,
+            )
+            db.add(report_record)
+        else:
+            report_record.title = f"Report: {prompt[:120]}"
+            report_record.content = content
+            report_record.region = user.region or report_record.region or "unknown"
+        db.commit()
+
     store.remove_active_job(redis_client, job_id)
     store.increment_queries_today(redis_client)
 
@@ -2124,11 +2282,12 @@ async def _run_report_job(
     }
     store.add_query_history(redis_client, user.tenant_id, history_item)
 
+    notification_id = str(uuid.uuid4())
     store.add_notification(
         redis_client,
         user.tenant_id,
         {
-            "id": str(uuid.uuid4()),
+            "id": notification_id,
             "title": f"Report ready: {prompt[:40]}",
             "message": "Your instant report has been generated and is ready to export.",
             "type": "report",
@@ -2136,6 +2295,19 @@ async def _run_report_job(
             "createdAt": datetime.now(timezone.utc).isoformat(),
         },
     )
+    with SessionLocal() as db:
+        db.add(
+            Notification(
+                id=notification_id,
+                organization_id=user.tenant_id,
+                user_id=_resolve_db_user_id(user.user_id, email=user.email, username=user.username),
+                title=f"Report ready: {prompt[:40]}",
+                message="Your instant report has been generated and is ready to export.",
+                type="report",
+                is_read=False,
+            )
+        )
+        db.commit()
 
     orgs = store.get_organizations(redis_client)
     for org in orgs:
@@ -2157,6 +2329,7 @@ async def generate_report(
     if not data_source:
         raise HTTPException(status_code=404, detail="Data source not found")
 
+    data_source = _ensure_data_source_exists(data_source, tenant_id)
     data_source = await _resolve_data_source_credentials(data_source, tenant_id)
     execution_engine = _normalize_execution_engine(body.executionEngine, data_source.get("type"))
 
@@ -2173,6 +2346,20 @@ async def generate_report(
             "executionEngine": execution_engine,
         },
     )
+
+    db_user_id = _resolve_db_user_id(user.user_id, email=user.email, username=user.username)
+    with SessionLocal() as db:
+        db_job = ReportJob(
+            id=job_id,
+            organization_id=tenant_id,
+            user_id=db_user_id or user.user_id,
+            data_source_id=data_source.get("id"),
+            prompt=body.prompt,
+            status="running",
+            progress=0,
+        )
+        db.add(db_job)
+        db.commit()
 
     _record_execution_log(
         organization_id=tenant_id,

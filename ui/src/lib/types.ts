@@ -114,6 +114,63 @@ export interface SubscriptionPlanDetails {
   highlighted?: boolean;
 }
 
+export interface BillingOrganizationState {
+  organization_id: string;
+  status: "active" | "inactive";
+  manual_status?: "active" | "inactive";
+  region?: string;
+  plan?: string;
+  payment_status?: string;
+  updated_by?: string;
+  updated_at?: string;
+  reason?: string;
+  access_enabled?: boolean;
+  invoice_count?: number;
+}
+
+export interface InvoiceRecord {
+  id: string;
+  organization_id: string;
+  country?: string;
+  currency?: string;
+  amount: number;
+  status: string;
+  plan?: string;
+  payment_provider?: string;
+  created_at?: string;
+  due_at?: string;
+  paid_at?: string | null;
+}
+
+export interface BillingReminderRecord {
+  id: string;
+  organization_id: string;
+  invoice_id?: string;
+  status: string;
+  due_at: string;
+  days_remaining: number;
+  message: string;
+}
+
+export interface SupportedRegion {
+  code: string;
+  name: string;
+  currency: string;
+}
+
+export interface PaymentCheckoutResponse {
+  provider?: string;
+  mode?: string;
+  payment_intent?: string;
+  client_secret?: string;
+  checkout_url?: string;
+  status?: string;
+  currency?: string;
+  amount?: number;
+  organization_id?: string;
+  message?: string;
+}
+
 export interface AuthUser {
   id: string;
   name: string;
