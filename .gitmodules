@@ -37,3 +37,6 @@
 [submodule "IRGP/irgp-org-registration-service"]
 	path = IRGP/irgp-org-registration-service
 	url = https://github.com/HaribabuChavala/irgp-org-registration-service.git
+[submodule "IRGP/irgp-ai-sql-service"]
+	path = IRGP/irgp-ai-sql-service
+	url = https://github.com/HaribabuChavala/irgp-ai-sql-service.git
