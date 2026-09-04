@@ -1,6 +1,3 @@
-[submodule "IRGP/irgp-auth-service"]
-	path = IRGP/irgp-auth-service
-	url = https://github.com/HaribabuChavala/irgp-auth-service.git
 [submodule "IRGP/irgp-billing-service"]
 	path = IRGP/irgp-billing-service
 	url = https://github.com/HaribabuChavala/irgp-billing-service.git
