@@ -386,6 +386,22 @@ class SqlAgentPipeline:
         request_url = raw_url
         request_payload: dict = payload
 
+        # If the configured ADK URL points at the IRGP SQL Agent, map our
+        # internal payload to the IRGP expected shape (question/session_id/user_id/max_rows)
+        if "irgp-sql-agent" in request_url or request_url.rstrip('/').endswith('/api/v1/query'):
+            if settings.google_adk_agent_api_key:
+                headers["Authorization"] = f"Bearer {settings.google_adk_agent_api_key}"
+            request_payload = {
+                "question": payload.get("prompt") or payload.get("question") or "",
+                "session_id": payload.get("tenant_id") or "",
+                "user_id": payload.get("user_id") or "system",
+                "max_rows": payload.get("policy", {}).get("max_rows", settings.max_sql_limit),
+            }
+            # ensure target path is /api/v1/query
+            request_url = request_url.rstrip('/')
+            if not request_url.endswith('/api/v1/query'):
+                request_url = request_url + '/api/v1/query'
+
         provider_name = "google-adk-remote"
         if use_gemini_api:
             provider_name = "google-gemini-api"

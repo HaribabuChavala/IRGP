@@ -211,15 +211,38 @@ class GoogleAdkSqlAgentService:
         headers = {"Content-Type": "application/json"}
         if self.agent_api_key:
             headers["Authorization"] = f"Bearer {self.agent_api_key}"
+        # Support two ADK formats:
+        # - legacy/adk mock: expects payload with 'question' and returns {'sql': ...}
+        # - platform ADK style: receives our generic payload and returns {'sql': ...}
+        url = self.agent_url.strip()
+
+        # If the configured URL looks like the IRGP SQL Agent service, call its /api/v1/query
+        if "irgp-sql-agent" in url or url.endswith("/api/v1/query") or url.endswith("/api/v1/query/"):
+            target = url.rstrip('/')
+            if not target.endswith('/api/v1/query'):
+                target = target + '/api/v1/query'
+            body = {
+                "question": payload.get("prompt") or payload.get("question") or "",
+                "session_id": payload.get("tenant_id") or "",
+                "user_id": payload.get("user_id") or "system",
+                "max_rows": payload.get("policy", {}).get("max_rows", 1000),
+            }
+        else:
+            target = url
+            body = payload
 
         async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(self.agent_url, json=payload, headers=headers)
+            response = await client.post(target, json=body, headers=headers)
             response.raise_for_status()
             body = response.json()
 
         sql = body.get("sql") or body.get("query")
         if not sql:
-            raise ValueError("ADK agent response missing sql field")
+            # fallback: some ADK mocks return nested structures, try common places
+            if isinstance(body, dict) and "result" in body and isinstance(body["result"], dict):
+                sql = body["result"].get("sql")
+        if not sql:
+            raise ValueError("ADK agent response missing sql field: %r" % (body,))
         return str(sql)
 
     async def _generate_via_sql_service(self, payload: dict) -> SqlGenerationResult | None:
