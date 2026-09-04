@@ -1,0 +1,66 @@
+{{- $root := . -}}
+{{- range $name, $svc := $root.Values.services }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "report-platform.fullname" $root }}-{{ $name }}
+  labels:
+{{ include "report-platform.labels" $root | indent 4 }}
+    component: {{ $name }}
+spec:
+  replicas: {{ $svc.replicas | default $root.Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "report-platform.fullname" $root }}-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "report-platform.fullname" $root }}-{{ $name }}
+        component: {{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: {{ $svc.image | quote }}
+          imagePullPolicy: {{ $root.Values.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+{{- if or $svc.env $svc.config.enabled $svc.secrets.enabled }}
+          env:
+{{- if $svc.env }}
+{{- range $k, $v := $svc.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+{{- end }}
+{{- end }}
+{{- if $svc.config.enabled }}
+            - name: CONFIG_FROM
+              value: "configmap"
+{{- end }}
+{{- if or $svc.config.enabled $svc.secrets.enabled }}
+          envFrom:
+{{- if $svc.config.enabled }}
+            - configMapRef:
+                name: {{ include "report-platform.fullname" $root }}-{{ $name }}-config
+{{- end }}
+{{- if $svc.secrets.enabled }}
+            - secretRef:
+                name: {{ include "report-platform.fullname" $root }}-{{ $name }}-secret
+{{- end }}
+{{- end }}
+{{- if $svc.probes.enabled }}
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.probes.livenessPath | default "/health" }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: {{ $svc.probes.initialDelaySeconds | default 10 }}
+            periodSeconds: {{ $svc.probes.periodSeconds | default 15 }}
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.probes.readinessPath | default ($svc.probes.livenessPath | default "/health") }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: {{ $svc.probes.readinessInitialDelaySeconds | default 5 }}
+            periodSeconds: {{ $svc.probes.readinessPeriodSeconds | default 10 }}
+{{- end }}
+{{- end }}
+---
+{{- end }}

@@ -4,6 +4,11 @@ from dataclasses import dataclass
 
 import httpx
 
+# HTTP timeout for AI service calls (seconds)
+AI_SQL_TIMEOUT = float(os.getenv("AI_SQL_TIMEOUT", "30"))
+AI_SQL_MAX_RETRIES = int(os.getenv("AI_SQL_MAX_RETRIES", "2"))
+AI_SQL_RETRY_BACKOFF = float(os.getenv("AI_SQL_RETRY_BACKOFF", "1"))
+
 
 FORBIDDEN_SQL_OPERATIONS = {
     "insert",
@@ -231,10 +236,24 @@ class GoogleAdkSqlAgentService:
             target = url
             body = payload
 
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(target, json=body, headers=headers)
-            response.raise_for_status()
-            body = response.json()
+        last_exc = None
+        for attempt in range(0, AI_SQL_MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=AI_SQL_TIMEOUT) as client:
+                    response = await client.post(target, json=body, headers=headers)
+                    response.raise_for_status()
+                    body = response.json()
+                    last_exc = None
+                    break
+            except Exception as exc:  # retry on any transient error
+                last_exc = exc
+                if attempt < AI_SQL_MAX_RETRIES:
+                    import asyncio
+
+                    backoff = AI_SQL_RETRY_BACKOFF * (2 ** attempt)
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
 
         sql = body.get("sql") or body.get("query")
         if not sql:
@@ -254,11 +273,31 @@ class GoogleAdkSqlAgentService:
             "tenant_id": payload["tenant_id"],
             "data_source": payload["data_source"],
         }
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(self.sql_service_url, json=body, headers={"Content-Type": "application/json"})
+        last_exc = None
+        for attempt in range(0, AI_SQL_MAX_RETRIES + 1):
+            try:
+                async with httpx.AsyncClient(timeout=AI_SQL_TIMEOUT) as client:
+                    response = await client.post(self.sql_service_url, json=body, headers={"Content-Type": "application/json"})
+                if response.status_code >= 400:
+                    # treat 4xx as non-retriable except 429
+                    if response.status_code == 429 and attempt < AI_SQL_MAX_RETRIES:
+                        import asyncio
 
-        if response.status_code >= 400:
-            raise ValueError(f"AI SQL service failed: {response.status_code} {response.text}")
+                        backoff = AI_SQL_RETRY_BACKOFF * (2 ** attempt)
+                        await asyncio.sleep(backoff)
+                        continue
+                    raise ValueError(f"AI SQL service failed: {response.status_code} {response.text}")
+                last_exc = None
+                break
+            except Exception as exc:
+                last_exc = exc
+                if attempt < AI_SQL_MAX_RETRIES:
+                    import asyncio
+
+                    backoff = AI_SQL_RETRY_BACKOFF * (2 ** attempt)
+                    await asyncio.sleep(backoff)
+                    continue
+                raise
 
         service_payload = response.json()
         return SqlGenerationResult(

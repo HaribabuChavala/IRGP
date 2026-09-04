@@ -262,7 +262,7 @@ services:
   # =========================================================
 
   google-adk-agent:
-    build: ./microservices/google-adk-agent
+    build: ./IRGP/irgp-google-adk-agent
     container_name: access-google-adk-agent
     restart: unless-stopped
 
@@ -288,8 +288,8 @@ services:
 
   spark-livy:
     build:
-      context: ./microservices
-      dockerfile: spark-livy/Dockerfile
+      context: ./IRGP
+      dockerfile: irgp-spark-livy/Dockerfile
     container_name: access-spark-livy
     restart: unless-stopped
 
@@ -312,7 +312,7 @@ services:
 
 
   livy-service:
-    build: ./microservices/livy-service
+    build: ./IRGP/irgp-livy-service
     container_name: access-livy-service
     restart: unless-stopped
 
@@ -337,7 +337,7 @@ services:
   # =========================================================
 
   ai-sql-service:
-    build: ./microservices/ai-sql-service
+    build: ./IRGP/irgp-ai-sql-service
     container_name: access-ai-sql-service
     restart: unless-stopped
 
@@ -409,6 +409,8 @@ services:
 
       # AI SQL generation microservice
       AI_SQL_SERVICE_URL: http://ai-sql-service:8000/generate-sql
+      # AI HTTP timeout (seconds)
+      AI_SQL_TIMEOUT: ${AI_SQL_TIMEOUT:-30}
       LIVY_SERVICE_URL: http://livy-service:8090/api/livy
 
       # Email provider for temp-password invitations
@@ -451,7 +453,7 @@ services:
   # =========================================================
 
   ui:
-    build: ./ui
+    build: ./IRGP/irgp-ui
     container_name: access-ui
     restart: unless-stopped
 

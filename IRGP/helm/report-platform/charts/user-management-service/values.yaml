@@ -1,0 +1,12 @@
+replicaCount: 1
+image:
+  repository: your-registry/separated-projects-user-management-service
+  tag: latest
+  pullPolicy: IfNotPresent
+service:
+  port: 8000
+resources: {}
+config:
+  enabled: false
+secrets:
+  enabled: false

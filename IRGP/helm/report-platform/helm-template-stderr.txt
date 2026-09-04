@@ -1,0 +1,3 @@
+install.go:200: [debug] Original chart version: ""
+install.go:217: [debug] CHART PATH: /chart
+

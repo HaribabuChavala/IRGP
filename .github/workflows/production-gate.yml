@@ -60,7 +60,8 @@ jobs:
       - name: Install AI SQL service test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r microservices/ai-sql-service/requirements.txt
+          pip install -r IRGP/ai-sql-service/requirements.txt
 
       - name: Run AI SQL service tests
-        run: pytest microservices/ai-sql-service/tests -q
+        run: pytest IRGP/ai-sql-service/tests -q
+

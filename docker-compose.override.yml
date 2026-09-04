@@ -1,7 +1,7 @@
 services:
 
   audit-service:
-    build: ./microservices/audit-service
+    build: ./IRGP/audit-service
     container_name: access-audit-service
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       - access-net
 
   scheduler-service:
-    build: ./microservices/scheduler-service
+    build: ./IRGP/scheduler-service
     container_name: access-scheduler-service
     restart: unless-stopped
     environment:
@@ -43,7 +43,7 @@ services:
       - access-net
 
   observability-service:
-    build: ./microservices/observability-service
+    build: ./IRGP/observability-service
     container_name: access-observability-service
     restart: unless-stopped
     environment:
@@ -64,7 +64,7 @@ services:
       - access-net
 
   export-service:
-    build: ./microservices/export-service
+    build: ./IRGP/export-service
     container_name: access-export-service
     restart: unless-stopped
     environment:
@@ -85,7 +85,7 @@ services:
       - access-net
 
   billing-service:
-    build: ./microservices/billing-service
+    build: ./IRGP/billing-service
     container_name: access-billing-service
     restart: unless-stopped
     environment:
@@ -108,7 +108,7 @@ services:
       - access-net
 
   payment-service:
-    build: ./microservices/payment-service
+    build: ./IRGP/payment-service
     container_name: access-payment-service
     restart: unless-stopped
     environment:
@@ -129,3 +129,4 @@ services:
       - keycloak
     networks:
       - access-net
+

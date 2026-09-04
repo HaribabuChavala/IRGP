@@ -101,7 +101,7 @@ services:
 
   auth-service:
     build:
-      context: ./microservices/auth-service
+      context: ./IRGP/auth-service
     container_name: access-auth-service
     restart: unless-stopped
     environment:
@@ -127,7 +127,7 @@ services:
 
   user-management-service:
     build:
-      context: ./microservices/user-management-service
+      context: ./IRGP/user-management-service
     container_name: access-user-management-service
     restart: unless-stopped
     environment:
@@ -151,7 +151,7 @@ services:
 
   org-registration-service:
     build:
-      context: ./microservices/org-registration-service
+      context: ./IRGP/org-registration-service
     container_name: access-org-registration-service
     restart: unless-stopped
     environment:
@@ -172,7 +172,7 @@ services:
 
   platform-admin-service:
     build:
-      context: ./microservices/platform-admin-service
+      context: ./IRGP/platform-admin-service
     container_name: access-platform-admin-service
     restart: unless-stopped
     environment:
@@ -195,7 +195,7 @@ services:
 
   org-portal-service:
     build:
-      context: ./microservices/org-portal-service
+      context: ./IRGP/org-portal-service
     container_name: access-org-portal-service
     restart: unless-stopped
     environment:
@@ -218,7 +218,7 @@ services:
 
   subscription-service:
     build:
-      context: ./microservices/subscription-service
+      context: ./IRGP/subscription-service
     container_name: access-subscription-service
     restart: unless-stopped
     environment:
@@ -239,7 +239,7 @@ services:
 
   notification-service:
     build:
-      context: ./microservices/notification-service
+      context: ./IRGP/notification-service
     container_name: access-notification-service
     restart: unless-stopped
     environment:
@@ -260,7 +260,7 @@ services:
 
   reminder-service:
     build:
-      context: ./microservices/reminder-service
+      context: ./IRGP/reminder-service
     container_name: access-reminder-service
     restart: unless-stopped
     environment:
@@ -281,7 +281,7 @@ services:
 
   data-source-service:
     build:
-      context: ./microservices/data-source-service
+      context: ./IRGP/data-source-service
     container_name: access-data-source-service
     restart: unless-stopped
     environment:
@@ -302,7 +302,7 @@ services:
 
   report-generation-service:
     build:
-      context: ./microservices/report-generation-service
+      context: ./IRGP/report-generation-service
     container_name: access-report-generation-service
     restart: unless-stopped
     environment:
@@ -325,7 +325,7 @@ services:
 
   ai-sql-service:
     build:
-      context: ./microservices/ai-sql-service
+      context: ./IRGP/ai-sql-service
     container_name: access-ai-sql-service
     restart: unless-stopped
     environment:
@@ -355,3 +355,4 @@ networks:
   access-net:
     name: access-security-net
     driver: bridge
+

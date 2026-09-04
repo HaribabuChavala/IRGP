@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  google-adk-agent:
+    build: ./google-adk-agent
+    container_name: spx-google-adk-agent
+    environment:
+      EXPECTED_API_TOKEN: local-adk-test-key
+    ports:
+      - 8001:8001
+
+  ai-sql-service:
+    build: ./ai-sql-service
+    container_name: spx-ai-sql-service
+    environment:
+      GOOGLE_ADK_AGENT_URL: http://google-adk-agent:8001/agent
+      GOOGLE_ADK_AGENT_API_KEY: local-adk-test-key
+    ports:
+      - 8000:8000
+    depends_on:
+      - google-adk-agent
+
+  report-generation-service:
+    build: ./report-generation-service
+    container_name: spx-report-generation-service
+    environment:
+      AI_SQL_SERVICE_URL: http://ai-sql-service:8000/generate-sql
+    ports:
+      - 8002:8000
+    depends_on:
+      - ai-sql-service
+
+  user-management-service:
+    build: ./user-management-service
+    container_name: spx-user-management-service
+    ports:
+      - 8003:8000
+
+networks:
+  default:
+    name: separated-projects-net

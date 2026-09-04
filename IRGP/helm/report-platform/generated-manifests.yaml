@@ -1,0 +1,699 @@
+---
+# Source: report-platform/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: report-platform-ai-sql-service-secret
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: ai-sql-service
+type: Opaque
+stringData:
+  API_KEY: "super-secret-value"
+---
+# Source: report-platform/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: report-platform-google-adk-agent-secret
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: google-adk-agent
+type: Opaque
+stringData:
+  ADK_TOKEN: "adk-secret"
+---
+# Source: report-platform/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: report-platform-report-generation-service-secret
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: report-generation-service
+type: Opaque
+stringData:
+  REPORT_SIGNING_KEY: "report-secret"
+---
+# Source: report-platform/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: report-platform-user-management-service-secret
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: user-management-service
+type: Opaque
+stringData:
+  DB_PASSWORD: "user-db-pass"
+---
+# Source: report-platform/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-platform-ai-sql-service-config
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: ai-sql-service
+data:
+  APP_SETTING: "demo"
+---
+# Source: report-platform/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-platform-google-adk-agent-config
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: google-adk-agent
+data:
+  ADK_MODE: "test"
+---
+# Source: report-platform/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-platform-report-generation-service-config
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: report-generation-service
+data:
+  REPORT_MODE: "sample"
+---
+# Source: report-platform/templates/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-platform-user-management-service-config
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: user-management-service
+data:
+  USER_DB: "users-db"
+---
+# Source: report-platform/charts/ai-sql-service/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-ai-sql-service
+spec:
+  selector:
+    app: report-platform-ai-sql-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/charts/google-adk-agent/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-google-adk-agent
+spec:
+  selector:
+    app: report-platform-google-adk-agent
+  ports:
+    - port: 8001
+      targetPort: 8001
+  type: ClusterIP
+---
+# Source: report-platform/charts/report-generation-service/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-report-generation-service
+spec:
+  selector:
+    app: report-platform-report-generation-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/charts/user-management-service/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-user-management-service
+spec:
+  selector:
+    app: report-platform-user-management-service
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-ai-sql-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: ai-sql-service
+spec:
+  selector:
+    app: report-platform-ai-sql-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-google-adk-agent
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: google-adk-agent
+spec:
+  selector:
+    app: report-platform-google-adk-agent
+  ports:
+    - protocol: TCP
+      port: 8001
+      targetPort: 8001
+  type: ClusterIP
+---
+# Source: report-platform/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-report-generation-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: report-generation-service
+spec:
+  selector:
+    app: report-platform-report-generation-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-platform-user-management-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: user-management-service
+spec:
+  selector:
+    app: report-platform-user-management-service
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# Source: report-platform/charts/ai-sql-service/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-ai-sql-service
+  labels:
+    app.kubernetes.io/name: report-platform-ai-sql-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: report-platform-ai-sql-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-ai-sql-service
+    spec:
+      containers:
+        - name: ai-sql-service
+          image: "your-registry/separated-projects-ai-sql-service:latest"
+          ports:
+            - containerPort: 8000
+          envFrom:
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/charts/google-adk-agent/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-google-adk-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-platform-google-adk-agent
+  template:
+    metadata:
+      labels:
+        app: report-platform-google-adk-agent
+    spec:
+      containers:
+        - name: google-adk-agent
+          image: "your-registry/separated-projects-google-adk-agent:latest"
+          ports:
+            - containerPort: 8001
+          envFrom:
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/charts/report-generation-service/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-report-generation-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: report-platform-report-generation-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-report-generation-service
+    spec:
+      containers:
+        - name: report-generation-service
+          image: "your-registry/separated-projects-report-generation-service:latest"
+          ports:
+            - containerPort: 8000
+          envFrom:
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/charts/user-management-service/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-user-management-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-platform-user-management-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-user-management-service
+    spec:
+      containers:
+        - name: user-management-service
+          image: "your-registry/separated-projects-user-management-service:latest"
+          ports:
+            - containerPort: 8000
+          envFrom:
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-ai-sql-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: ai-sql-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: report-platform-ai-sql-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-ai-sql-service
+        component: ai-sql-service
+    spec:
+      containers:
+        - name: ai-sql-service
+          image: "your-registry/separated-projects-ai-sql-service:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CONFIG_FROM
+              value: "configmap"
+          envFrom:
+            - configMapRef:
+                name: report-platform-ai-sql-service-config
+            - secretRef:
+                name: report-platform-ai-sql-service-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-google-adk-agent
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: google-adk-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-platform-google-adk-agent
+  template:
+    metadata:
+      labels:
+        app: report-platform-google-adk-agent
+        component: google-adk-agent
+    spec:
+      containers:
+        - name: google-adk-agent
+          image: "your-registry/separated-projects-google-adk-agent:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8001
+          env:
+            - name: EXPECTED_API_TOKEN
+              value: "local-adk-test-key"
+            - name: CONFIG_FROM
+              value: "configmap"
+          envFrom:
+            - configMapRef:
+                name: report-platform-google-adk-agent-config
+            - secretRef:
+                name: report-platform-google-adk-agent-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-report-generation-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: report-generation-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: report-platform-report-generation-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-report-generation-service
+        component: report-generation-service
+    spec:
+      containers:
+        - name: report-generation-service
+          image: "your-registry/separated-projects-report-generation-service:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CONFIG_FROM
+              value: "configmap"
+          envFrom:
+            - configMapRef:
+                name: report-platform-report-generation-service-config
+            - secretRef:
+                name: report-platform-report-generation-service-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-platform-user-management-service
+  labels:
+    app.kubernetes.io/name: report-platform
+    app.kubernetes.io/instance: report-platform
+    app.kubernetes.io/managed-by: Helm
+    chart: report-platform-0.1.0
+    component: user-management-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: report-platform-user-management-service
+  template:
+    metadata:
+      labels:
+        app: report-platform-user-management-service
+        component: user-management-service
+    spec:
+      containers:
+        - name: user-management-service
+          image: "your-registry/separated-projects-user-management-service:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+          env:
+            - name: CONFIG_FROM
+              value: "configmap"
+          envFrom:
+            - configMapRef:
+                name: report-platform-user-management-service-config
+            - secretRef:
+                name: report-platform-user-management-service-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Source: report-platform/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-platform-ai-sql-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-platform-ai-sql-service
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Source: report-platform/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-platform-google-adk-agent-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-platform-google-adk-agent
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Source: report-platform/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-platform-report-generation-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-platform-report-generation-service
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Source: report-platform/templates/hpa.yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-platform-user-management-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-platform-user-management-service
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+# Source: report-platform/templates/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: report-platform-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+spec:
+  rules:
+
+  - host: "report.local"
+    http:
+      paths:
+
+      - path: "/"
+        pathType: Prefix
+        backend:
+          service:
+            name: report-platform-report-generation-service
+            port:
+              number: 8000
+---
+# Source: report-platform/templates/notes.txt
+1. Get the application URL by running these commands after install:
+
+    kubectl get svc -n report-platform
+
+2. To install the chart:
+
+    helm upgrade --install report-platform ./report-platform -n report-platform --create-namespace
+
+3. To uninstall:
+
+    helm uninstall report-platform -n report-platform

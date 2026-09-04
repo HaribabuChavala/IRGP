@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "user-management-service.fullname" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "user-management-service.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "user-management-service.fullname" . }}
+    spec:
+      containers:
+        - name: user-management-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          envFrom:
+            {{- if .Values.config.enabled }}
+            - configMapRef:
+                name: {{ include "user-management-service.fullname" . }}-config
+            {{- end }}
+            {{- if .Values.secrets.enabled }}
+            - secretRef:
+                name: {{ include "user-management-service.fullname" . }}-secret
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10

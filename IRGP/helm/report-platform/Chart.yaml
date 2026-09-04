@@ -1,0 +1,19 @@
+apiVersion: v2
+name: report-platform
+description: Helm chart for the separated report platform services
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: ai-sql-service
+    version: "0.1.0"
+    repository: "file://charts/ai-sql-service"
+  - name: google-adk-agent
+    version: "0.1.0"
+    repository: "file://charts/google-adk-agent"
+  - name: report-generation-service
+    version: "0.1.0"
+    repository: "file://charts/report-generation-service"
+  - name: user-management-service
+    version: "0.1.0"
+    repository: "file://charts/user-management-service"

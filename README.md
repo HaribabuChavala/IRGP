@@ -217,7 +217,7 @@ Then keep these env values set for the service:
 - `VAULT_SECRET_PATH=secret/data/report-platform`
 - `VAULT_GOOGLE_ADK_API_KEY_FIELD=GOOGLE_ADK_AGENT_API_KEY`
 
-For full mock endpoint examples, see `microservices/google-adk-agent/README.md`.
+For full mock endpoint examples, see `IRGP/google-adk-agent/README.md`.
 
 The generated SQL is returned in the report job stream and displayed in the UI chat output.
 
@@ -330,3 +330,4 @@ docker compose down -v
 8. Add Cloudflare after the local stack works.
 
 This is a development lab. Do not use the demo passwords, HTTP-only configuration, or development-mode Keycloak directly in production.
+

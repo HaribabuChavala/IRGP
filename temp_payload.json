@@ -1,0 +1,1 @@
+{"prompt":"show revenue by region","tenant_id":"tenant1","data_source":{"id":"ds1","name":"test","type":"postgres","database":"db"}}
