@@ -124,3 +124,6 @@
 [submodule "IRGP/IRGP/irgp-spark-connectors"]
 	path = IRGP/IRGP/irgp-spark-connectors
 	url = https://github.com/HaribabuChavala/irgp-spark-connectors.git
+[submodule "IRGP/IRGP/irgp-spark-livy"]
+	path = IRGP/IRGP/irgp-spark-livy
+	url = https://github.com/HaribabuChavala/irgp-spark-livy.git
