@@ -37,3 +37,6 @@
 [submodule "IRGP/irgp-billing-service"]
 	path = IRGP/irgp-billing-service
 	url = https://github.com/HaribabuChavala/irgp-billing-service.git
+[submodule "IRGP/irgp-data-source-service"]
+	path = IRGP/irgp-data-source-service
+	url = https://github.com/HaribabuChavala/irgp-data-source-service.git
