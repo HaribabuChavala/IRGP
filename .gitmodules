@@ -1,3 +1,6 @@
 [submodule "IRGP/irgp-ai-sql-service"]
 	path = IRGP/irgp-ai-sql-service
 	url = https://github.com/HaribabuChavala/irgp-ai-sql-service.git
+[submodule "IRGP/irgp-audit-service"]
+	path = IRGP/irgp-audit-service
+	url = https://github.com/HaribabuChavala/irgp-audit-service.git
