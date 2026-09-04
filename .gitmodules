@@ -70,3 +70,6 @@
 [submodule "IRGP/IRGP/irgp-audit-service"]
 	path = IRGP/IRGP/irgp-audit-service
 	url = https://github.com/HaribabuChavala/irgp-audit-service.git
+[submodule "IRGP/IRGP/irgp-auth-service"]
+	path = IRGP/IRGP/irgp-auth-service
+	url = https://github.com/HaribabuChavala/irgp-auth-service.git
