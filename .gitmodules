@@ -85,3 +85,6 @@
 [submodule "IRGP/IRGP/irgp-google-adk-agent"]
 	path = IRGP/IRGP/irgp-google-adk-agent
 	url = https://github.com/HaribabuChavala/irgp-google-adk-agent.git
+[submodule "IRGP/IRGP/irgp-helm"]
+	path = IRGP/IRGP/irgp-helm
+	url = https://github.com/HaribabuChavala/irgp-helm.git
