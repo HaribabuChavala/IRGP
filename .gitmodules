@@ -103,3 +103,6 @@
 [submodule "IRGP/IRGP/irgp-org-portal-service"]
 	path = IRGP/IRGP/irgp-org-portal-service
 	url = https://github.com/HaribabuChavala/irgp-org-portal-service.git
+[submodule "IRGP/IRGP/irgp-org-registration-service"]
+	path = IRGP/IRGP/irgp-org-registration-service
+	url = https://github.com/HaribabuChavala/irgp-org-registration-service.git
