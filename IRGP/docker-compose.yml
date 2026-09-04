@@ -37,4 +37,5 @@ services:
 
 networks:
   default:
-    name: separated-projects-net
+    name: IRGP-net
+

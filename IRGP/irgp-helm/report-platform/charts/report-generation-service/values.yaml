@@ -1,6 +1,6 @@
 replicaCount: 2
 image:
-  repository: your-registry/separated-projects-ai-sql-service
+  repository: your-registry/IRGP-report-generation-service
   tag: latest
   pullPolicy: IfNotPresent
 service:
@@ -10,3 +10,4 @@ config:
   enabled: false
 secrets:
   enabled: false
+

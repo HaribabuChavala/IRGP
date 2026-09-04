@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: your-registry/separated-projects-user-management-service
+  repository: your-registry/IRGP-user-management-service
   tag: latest
   pullPolicy: IfNotPresent
 service:
@@ -10,3 +10,4 @@ config:
   enabled: false
 secrets:
   enabled: false
+

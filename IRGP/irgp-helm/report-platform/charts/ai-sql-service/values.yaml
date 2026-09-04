@@ -1,12 +1,13 @@
-replicaCount: 1
+replicaCount: 2
 image:
-  repository: your-registry/separated-projects-google-adk-agent
+  repository: your-registry/IRGP-ai-sql-service
   tag: latest
   pullPolicy: IfNotPresent
 service:
-  port: 8001
+  port: 8000
 resources: {}
 config:
   enabled: false
 secrets:
   enabled: false
+

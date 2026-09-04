@@ -117,19 +117,19 @@ The UI Docker image uses **Node 22 / npm 10**. If you use a newer local Node/npm
 **PowerShell** (from repo root):
 
 ```powershell
-docker run --rm -v "${PWD}/separated-projects/ui:/app" -w /app node:22-alpine npm install
+docker run --rm -v "${PWD}/IRGP/ui:/app" -w /app node:22-alpine npm install
 ```
 
 **Command Prompt**:
 
 ```cmd
-docker run --rm -v "%cd%\\separated-projects\\ui:/app" -w /app node:22-alpine npm install
+docker run --rm -v "%cd%\\IRGP\\ui:/app" -w /app node:22-alpine npm install
 ```
 
 **Absolute path** (works everywhere):
 
 ```powershell
-docker run --rm -v "C:/Projects/access-security-lab/separated-projects/ui:/app" -w /app node:22-alpine npm install
+docker run --rm -v "C:/Projects/access-security-lab/IRGP/ui:/app" -w /app node:22-alpine npm install
 ```
 
 ## Scripts
@@ -138,3 +138,4 @@ docker run --rm -v "C:/Projects/access-security-lab/separated-projects/ui:/app" 
 - `npm run build` — Production build
 - `npm run start` — Production server
 - `npm run lint` — ESLint
+

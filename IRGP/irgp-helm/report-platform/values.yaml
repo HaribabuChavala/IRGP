@@ -3,7 +3,7 @@ imagePullPolicy: IfNotPresent
 
 services:
   ai-sql-service:
-    image: "your-registry/separated-projects-ai-sql-service:latest"
+    image: "your-registry/IRGP-ai-sql-service:latest"
     port: 8000
     replicas: 2
     env: {}
@@ -31,7 +31,7 @@ services:
       readinessInitialDelaySeconds: 5
       readinessPeriodSeconds: 10
   google-adk-agent:
-    image: "your-registry/separated-projects-google-adk-agent:latest"
+    image: "your-registry/IRGP-google-adk-agent:latest"
     port: 8001
     replicas: 1
     env:
@@ -60,7 +60,7 @@ services:
       readinessInitialDelaySeconds: 5
       readinessPeriodSeconds: 10
   report-generation-service:
-    image: "your-registry/separated-projects-report-generation-service:latest"
+    image: "your-registry/IRGP-report-generation-service:latest"
     port: 8000
     replicas: 2
     env: {}
@@ -88,7 +88,7 @@ services:
       readinessInitialDelaySeconds: 5
       readinessPeriodSeconds: 10
   user-management-service:
-    image: "your-registry/separated-projects-user-management-service:latest"
+    image: "your-registry/IRGP-user-management-service:latest"
     port: 8000
     replicas: 1
     env: {}
@@ -135,3 +135,4 @@ hpa:
   targetCPUUtilizationPercentage: 70
 
 namespace: report-platform
+

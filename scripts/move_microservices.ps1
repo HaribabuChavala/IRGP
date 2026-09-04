@@ -3,7 +3,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Resolve-Path (Join-Path $scriptDir '..') | Select-Object -ExpandProperty Path
 Set-Location $root
 $srcRoot = Join-Path $root 'microservices'
-$dstRoot = Join-Path $root 'separated-projects'
+$dstRoot = Join-Path $root 'IRGP'
 if (-Not (Test-Path $srcRoot)) { Write-Host "No microservices folder found at $srcRoot"; exit 1 }
 Get-ChildItem -Path $srcRoot -Directory | ForEach-Object {
     $src = $_.FullName
@@ -14,3 +14,4 @@ Get-ChildItem -Path $srcRoot -Directory | ForEach-Object {
 Write-Host "Removing original microservices folder: $srcRoot"
 Remove-Item -LiteralPath $srcRoot -Recurse -Force
 Write-Host "MOVE_DONE"
+
