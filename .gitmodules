@@ -25,3 +25,6 @@
 [submodule "IRGP/irgp-infra"]
 	path = IRGP/irgp-infra
 	url = https://github.com/HaribabuChavala/irgp-infra.git
+[submodule "IRGP/irgp-livy-service"]
+	path = IRGP/irgp-livy-service
+	url = https://github.com/HaribabuChavala/irgp-livy-service.git
