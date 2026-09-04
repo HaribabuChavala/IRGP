@@ -391,6 +391,8 @@ class SqlAgentPipeline:
         if "irgp-sql-agent" in request_url or request_url.rstrip('/').endswith('/api/v1/query'):
             if settings.google_adk_agent_api_key:
                 headers["Authorization"] = f"Bearer {settings.google_adk_agent_api_key}"
+                # IRGP also accepts an API key header
+                headers["x-api-key"] = settings.google_adk_agent_api_key
             request_payload = {
                 "question": payload.get("prompt") or payload.get("question") or "",
                 "session_id": payload.get("tenant_id") or "",
@@ -431,10 +433,19 @@ class SqlAgentPipeline:
             if settings.google_adk_agent_api_key:
                 headers["Authorization"] = f"Bearer {settings.google_adk_agent_api_key}"
 
-        async with httpx.AsyncClient(timeout=20) as client:
-            response = await client.post(request_url, json=request_payload, headers=headers)
-            response.raise_for_status()
-            body = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                response = await client.post(request_url, json=request_payload, headers=headers)
+                response.raise_for_status()
+                body = response.json()
+        except Exception as e:
+            # Remote ADK failed (network, auth, or 5xx). Fall back to local generator by returning None.
+            # Preserve debugging info via a printed warning to the service logs.
+            try:
+                print(f"Google ADK remote call failed: {e}")
+            except Exception:
+                pass
+            return None
 
         if provider_name == "google-gemini-api":
             sql = self._extract_sql_from_gemini_response(body)
