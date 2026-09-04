@@ -127,3 +127,6 @@
 [submodule "IRGP/irgp-scheduler-service"]
 	path = IRGP/irgp-scheduler-service
 	url = https://github.com/HaribabuChavala/irgp-scheduler-service.git
+[submodule "IRGP/irgp-spark-connectors"]
+	path = IRGP/irgp-spark-connectors
+	url = https://github.com/HaribabuChavala/irgp-spark-connectors.git
