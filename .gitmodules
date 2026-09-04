@@ -118,3 +118,6 @@
 [submodule "IRGP/IRGP/irgp-report-generation-service"]
 	path = IRGP/IRGP/irgp-report-generation-service
 	url = https://github.com/HaribabuChavala/irgp-report-generation-service.git
+[submodule "IRGP/IRGP/irgp-scheduler-service"]
+	path = IRGP/IRGP/irgp-scheduler-service
+	url = https://github.com/HaribabuChavala/irgp-scheduler-service.git
