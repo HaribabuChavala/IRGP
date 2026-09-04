@@ -94,3 +94,6 @@
 [submodule "IRGP/IRGP/irgp-livy-service"]
 	path = IRGP/IRGP/irgp-livy-service
 	url = https://github.com/HaribabuChavala/irgp-livy-service.git
+[submodule "IRGP/IRGP/irgp-notification-service"]
+	path = IRGP/IRGP/irgp-notification-service
+	url = https://github.com/HaribabuChavala/irgp-notification-service.git
