@@ -64,3 +64,6 @@
 [submodule "IRGP/irgp-subscription-service"]
 	path = IRGP/irgp-subscription-service
 	url = https://github.com/HaribabuChavala/irgp-subscription-service.git
+[submodule "IRGP/IRGP/irgp-ai-sql-service"]
+	path = IRGP/IRGP/irgp-ai-sql-service
+	url = https://github.com/HaribabuChavala/irgp-ai-sql-service.git
