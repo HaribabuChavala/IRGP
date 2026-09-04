@@ -82,3 +82,6 @@
 [submodule "IRGP/IRGP/irgp-export-service"]
 	path = IRGP/IRGP/irgp-export-service
 	url = https://github.com/HaribabuChavala/irgp-export-service.git
+[submodule "IRGP/IRGP/irgp-google-adk-agent"]
+	path = IRGP/IRGP/irgp-google-adk-agent
+	url = https://github.com/HaribabuChavala/irgp-google-adk-agent.git
