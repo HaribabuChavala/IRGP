@@ -91,3 +91,6 @@
 [submodule "IRGP/IRGP/irgp-infra"]
 	path = IRGP/IRGP/irgp-infra
 	url = https://github.com/HaribabuChavala/irgp-infra.git
+[submodule "IRGP/IRGP/irgp-livy-service"]
+	path = IRGP/IRGP/irgp-livy-service
+	url = https://github.com/HaribabuChavala/irgp-livy-service.git
