@@ -1,1 +1,0 @@
-{"prompt":"Show total revenue by region","tenant_id":"tenant-demo","data_source":{"id":"ds-001","name":"Oracle Sales Mart","type":"oracle","database":"FREEPDB1"}}
