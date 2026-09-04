@@ -115,3 +115,6 @@
 [submodule "IRGP/IRGP/irgp-reminder-service"]
 	path = IRGP/IRGP/irgp-reminder-service
 	url = https://github.com/HaribabuChavala/irgp-reminder-service.git
+[submodule "IRGP/IRGP/irgp-report-generation-service"]
+	path = IRGP/IRGP/irgp-report-generation-service
+	url = https://github.com/HaribabuChavala/irgp-report-generation-service.git
