@@ -133,3 +133,6 @@
 [submodule "IRGP/irgp-user-management-service"]
 	path = IRGP/irgp-user-management-service
 	url = https://github.com/HaribabuChavala/irgp-user-management-service.git
+[submodule "IRGP/irgp-ai-sql-service"]
+	path = IRGP/irgp-ai-sql-service
+	url = https://github.com/HaribabuChavala/irgp-ai-sql-service.git
