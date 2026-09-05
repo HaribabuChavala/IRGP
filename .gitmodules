@@ -64,9 +64,6 @@
 [submodule "IRGP/IRGP/irgp-subscription-service"]
 	path = IRGP/IRGP/irgp-subscription-service
 	url = https://github.com/HaribabuChavala/irgp-subscription-service.git
-[submodule "IRGP/irgp-reminder-service"]
-	path = IRGP/irgp-reminder-service
-	url = https://github.com/HaribabuChavala/irgp-reminder-service.git
 [submodule "IRGP/irgp-report-generation-service"]
 	path = IRGP/irgp-report-generation-service
 	url = https://github.com/HaribabuChavala/irgp-report-generation-service.git
