@@ -133,3 +133,6 @@
 [submodule "IRGP/irgp-notification-service"]
 	path = IRGP/irgp-notification-service
 	url = https://github.com/HaribabuChavala/irgp-notification-service.git
+[submodule "IRGP/irgp-observability-service"]
+	path = IRGP/irgp-observability-service
+	url = https://github.com/HaribabuChavala/irgp-observability-service.git
