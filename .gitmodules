@@ -64,9 +64,6 @@
 [submodule "IRGP/IRGP/irgp-subscription-service"]
 	path = IRGP/IRGP/irgp-subscription-service
 	url = https://github.com/HaribabuChavala/irgp-subscription-service.git
-[submodule "IRGP/irgp-export-service"]
-	path = IRGP/irgp-export-service
-	url = https://github.com/HaribabuChavala/irgp-export-service.git
 [submodule "IRGP/irgp-google-adk-agent"]
 	path = IRGP/irgp-google-adk-agent
 	url = https://github.com/HaribabuChavala/irgp-google-adk-agent.git
