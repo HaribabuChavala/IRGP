@@ -64,9 +64,6 @@
 [submodule "IRGP/IRGP/irgp-subscription-service"]
 	path = IRGP/IRGP/irgp-subscription-service
 	url = https://github.com/HaribabuChavala/irgp-subscription-service.git
-[submodule "IRGP/irgp-spark-connectors"]
-	path = IRGP/irgp-spark-connectors
-	url = https://github.com/HaribabuChavala/irgp-spark-connectors.git
 [submodule "IRGP/irgp-spark-livy"]
 	path = IRGP/irgp-spark-livy
 	url = https://github.com/HaribabuChavala/irgp-spark-livy.git
