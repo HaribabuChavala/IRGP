@@ -133,3 +133,6 @@
 [submodule "IRGP/irgp-subscription-service"]
 	path = IRGP/irgp-subscription-service
 	url = https://github.com/HaribabuChavala/irgp-subscription-service.git
+[submodule "IRGP/irgp-ui"]
+	path = IRGP/irgp-ui
+	url = https://github.com/HaribabuChavala/irgp-ui.git
